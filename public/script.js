@@ -284,6 +284,7 @@ function onAuthSuccess(user, message) {
   syncAccountUI();
   showToast(message);
   renderProfile();
+  syncSavedFromServer();
 }
 
 async function handleSignOut() {
@@ -329,6 +330,7 @@ async function loadCurrentUser() {
     currentUser = null;
   }
   syncAccountUI();
+  if (currentUser) syncSavedFromServer();
 }
 
 /* ================= Campaigns ================= */
@@ -547,14 +549,48 @@ function filterCampaigns() {
   if (empty) empty.classList.toggle('hidden', cards.some(c => !c.classList.contains('hidden')));
 }
 
-/* ================= Save / bookmark (kept local — not tied to auth) ================= */
+/* ================= Save / bookmark =================
+   Guests: localStorage. Signed in: the account (Neon) is the source of truth,
+   so bookmarks follow the user across devices. */
+async function syncSavedFromServer() {
+  if (!currentUser) return;
+  try {
+    const { saved: serverSaved } = await api('/saved');
+    const before = new Set(saved);
+    serverSaved.forEach(id => saved.add(id)); // account → this device
+    // Guest saves made before signing in → the account (union, so nothing is lost)
+    const toPush = [...saved].filter(id => !serverSaved.includes(id));
+    await Promise.all(toPush.map(id => api(`/saved/${encodeURIComponent(id)}`, { method: 'PUT' }).catch(() => {})));
+    if (toPush.length || [...saved].some(id => !before.has(id))) {
+      localStorage.setItem('donateuz-saved', JSON.stringify([...saved]));
+    }
+    if (document.getElementById('profile-view').classList.contains('active')) renderSaved();
+  } catch (err) {
+    console.warn('[saved] could not sync from server', err.message);
+  }
+}
+
 function toggleSave(id) {
-  saved.has(id) ? saved.delete(id) : saved.add(id);
+  const willSave = !saved.has(id);
+  willSave ? saved.add(id) : saved.delete(id);
   localStorage.setItem('donateuz-saved', JSON.stringify([...saved]));
   const icon = document.getElementById('save-' + id);
-  if (icon) { icon.setAttribute('data-lucide', saved.has(id) ? 'bookmark-check' : 'bookmark'); lucide.createIcons(); }
-  showToast(saved.has(id) ? 'Campaign saved' : 'Campaign removed from saved');
+  if (icon) { icon.setAttribute('data-lucide', willSave ? 'bookmark-check' : 'bookmark'); lucide.createIcons(); }
+  showToast(willSave ? 'Campaign saved' : 'Campaign removed from saved');
   if (document.getElementById('profile-view').classList.contains('active')) renderSaved();
+
+  // Signed in: keep the account in sync. On failure, roll the toggle back.
+  if (currentUser) {
+    const rollback = () => {
+      willSave ? saved.delete(id) : saved.add(id);
+      localStorage.setItem('donateuz-saved', JSON.stringify([...saved]));
+      const ic = document.getElementById('save-' + id);
+      if (ic) { ic.setAttribute('data-lucide', saved.has(id) ? 'bookmark-check' : 'bookmark'); lucide.createIcons(); }
+      showToast('Could not sync your saved campaigns. Check your connection.', 'error');
+    };
+    api(willSave ? `/saved/${encodeURIComponent(id)}` : `/saved/${encodeURIComponent(id)}`, { method: willSave ? 'PUT' : 'DELETE' })
+      .catch(rollback);
+  }
 }
 
 function renderSaved() {

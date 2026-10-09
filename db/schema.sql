@@ -80,6 +80,14 @@ ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS campaign_id text REFERENCE
 -- Set once a receipt email has been claimed, so the webhook and the success page never both send one.
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS receipt_sent_at timestamptz;
 
+-- ---------- Saved / bookmarked campaigns (per account, synced across devices) ----------
+CREATE TABLE IF NOT EXISTS saved_campaigns (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  campaign_id text NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, campaign_id)
+);
+
 -- ---------- Seed campaigns (safe to re-run) ----------
 INSERT INTO campaigns (id, title, category, region, story, image_seed, goal_amount_cents, seed_raised_amount_cents, urgency)
 VALUES

@@ -12,6 +12,7 @@ const donationRoutes = require('./routes/donations');
 const supportRoutes = require('./routes/support');
 const adminRoutes = require('./routes/admin');
 const statsRoutes = require('./routes/stats');
+const savedRoutes = require('./routes/saved');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -70,6 +71,7 @@ app.post('/api/support-requests', supportLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/donations', donationRoutes);
+app.use('/api/saved', savedRoutes);
 app.use('/api/support-requests', supportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stats', statsRoutes);
