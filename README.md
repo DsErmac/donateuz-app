@@ -158,5 +158,5 @@ Everything on the dashboard is fetched through `/api/admin/*`, which re-checks
   so keep them to `[a-z0-9-]` when you build campaign creation.
 - Webhook handling is idempotent: renewal donations are keyed on `stripe_invoice_id` (UNIQUE).
 - The Content-Security-Policy still allows inline scripts because the HTML uses inline `onclick`
-  handlers and the Tailwind CDN. Moving to `addEventListener` and a built Tailwind CSS file would
-  let you remove `'unsafe-inline'`.
+  handlers (the Tailwind CDN was replaced by a small utility layer in `styles.css`).
+  Moving to `addEventListener` would let you remove `'unsafe-inline'`.

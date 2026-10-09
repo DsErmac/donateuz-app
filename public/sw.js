@@ -1,5 +1,5 @@
 // Service Worker for DonateUZ PWA
-const CACHE_NAME = 'donateuz-v2';
+const CACHE_NAME = 'donateuz-v3';
 const OFFLINE_URL = '/offline.html';
 
 // Files to cache on install
@@ -12,7 +12,6 @@ const FILES_TO_CACHE = [
   '/script.js',
   '/favicon.ico',
   // Static assets
-  'https://cdn.tailwindcss.com/3.4.17',
   'https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js',
   'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..900&family=Figtree:wght@400;500;600;700;800&display=swap'
 ];
