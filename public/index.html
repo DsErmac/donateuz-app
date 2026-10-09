@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>DonateUZ</title>
+  <meta name="description" content="Support trusted local causes across Uzbekistan. Secure donations through Stripe. 100% verified and transparent.">
+  <meta name="theme-color" content="#1D6FA3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DonateUZ">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="icon" href="/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..900&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="phone-frame" id="app">
+
+      <!-- APP HEADER -->
+      <header class="header p-4 flex items-center justify-between">
+        <button type="button" class="flex items-center gap-2 bg-transparent border-0 p-0 text-left" aria-label="Go to home" onclick="showView('home')">
+          <span class="logo-mark" aria-hidden="true"><i data-lucide="hand-heart" style="width:22px"></i></span>
+          <span>
+            <span class="block font-extrabold leading-none text-lg display" style="color:var(--text)">Donate<span style="color:var(--primary)">UZ</span></span>
+            <span class="block text-xs mt-1" style="color:var(--subtext)">Kindness, close to home</span>
+          </span>
+        </button>
+        <div class="flex gap-2">
+          <button type="button" class="icon-btn relative" aria-label="Open notifications" onclick="openSheet('notifications-sheet')">
+            <i data-lucide="bell" style="width:19px"></i>
+            <span id="notif-badge" class="absolute top-2 right-2 w-2.5 h-2.5 rounded-full" style="background:var(--terra)"></span>
+          </button>
+          <button type="button" class="icon-btn" id="header-account-btn" aria-label="Account" onclick="handleAccountClick()">
+            <i data-lucide="user-round" style="width:19px"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN CONTENT WRAPPER -->
+      <main class="main-content">
+
+        <!-- 1. HOME VIEW -->
+        <section id="home-view" class="view active" aria-label="Home">
+
+          <div class="hero reveal">
+            <img id="hero-image" class="hero-fallback" loading="lazy" alt="Community volunteers distributing aid">
+            <video id="hero-video" class="hero-video" autoplay muted loop playsinline preload="metadata">
+              <source src="https://videos.pexels.com/video-files/6646618/6646618-hd_1920_1080_30fps.mp4" type="video/mp4">
+            </video>
+            <div class="hero-wash" aria-hidden="true"></div>
+            <div class="sunburst hero-sunburst" aria-hidden="true"></div>
+            <div class="hero-content">
+              <span class="hero-chip"><i data-lucide="badge-check"></i> Document-verified causes across Uzbekistan</span>
+              <h1>Give where it matters most</h1>
+              <p>DonateUZ connects you to neighbours who need a hand. Every request is verified, every payment is protected, and every sum reaches its cause.</p>
+              <div class="hero-actions">
+                <button type="button" class="primary-btn text-xs h-9 px-4" onclick="showView('donate')">Explore causes</button>
+                <button type="button" class="secondary-btn text-xs h-9 px-3" onclick="showView('request')">Request help</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stats-bar mt-4 reveal">
+            <div class="stat-item"><strong class="stat-number" id="home-donor-count">–</strong><span class="stat-label">Donors</span></div>
+            <div class="stat-divider"></div>
+            <div class="stat-item"><strong class="stat-number" id="home-raised-total">–</strong><span class="stat-label">Raised</span></div>
+            <div class="stat-divider"></div>
+            <div class="stat-item"><strong class="stat-number" id="home-campaign-count">–</strong><span class="stat-label">Active causes</span></div>
+          </div>
+
+          <h2 class="section-title reveal">How giving works</h2>
+          <div class="how-grid reveal">
+            <div class="how-item">
+              <i data-lucide="heart-handshake"></i>
+              <strong>Pick a verified cause</strong>
+              <p>Every request is document-checked by our team before it is listed.</p>
+            </div>
+            <div class="how-item">
+              <i data-lucide="lock"></i>
+              <strong>Give securely</strong>
+              <p>Payments run through Stripe checkout. Card details never touch our servers.</p>
+            </div>
+            <div class="how-item">
+              <i data-lucide="receipt-text"></i>
+              <strong>See your impact</strong>
+              <p>A receipt lands in your profile, and completed causes share their outcome.</p>
+            </div>
+          </div>
+
+          <h2 class="section-title reveal">Urgent right now</h2>
+          <div id="home-spotlight" class="reveal"></div>
+
+          <h2 class="section-title reveal">Explore causes</h2>
+          <div class="category-grid reveal">
+            <button type="button" class="category-card medical" onclick="navigateToDonateWithCategory('Medical')">
+              <div class="cat-icon medical-cat"><i data-lucide="heart-pulse"></i></div>
+              <span class="cat-name">Medical</span>
+            </button>
+            <button type="button" class="category-card education" onclick="navigateToDonateWithCategory('Education')">
+              <div class="cat-icon education-cat"><i data-lucide="graduation-cap"></i></div>
+              <span class="cat-name">Education</span>
+            </button>
+            <button type="button" class="category-card food" onclick="navigateToDonateWithCategory('Food')">
+              <div class="cat-icon food-cat"><i data-lucide="utensils"></i></div>
+              <span class="cat-name">Food relief</span>
+            </button>
+            <button type="button" class="category-card relief" onclick="navigateToDonateWithCategory('Relief')">
+              <div class="cat-icon relief-cat"><i data-lucide="house-heart"></i></div>
+              <span class="cat-name">Disaster relief</span>
+            </button>
+          </div>
+
+          <h2 class="section-title reveal">Recent impact</h2>
+          <div id="activity-feed" class="activity-feed reveal" aria-label="Recent donations">
+            <div class="activity-item">
+              <div class="activity-avatar"><i data-lucide="heart" style="width:15px"></i></div>
+              <div>
+                <span class="font-bold">Loading recent donations…</span>
+              </div>
+            </div>
+          </div>
+
+          <h2 class="section-title reveal">Impact stories</h2>
+          <article class="story reveal">
+            <img id="impact-one-image" loading="lazy" alt="Repaired family home">
+            <div>
+              <span class="badge completed"><i data-lucide="circle-check" style="width:12px"></i> Completed</span>
+              <h3 class="text-sm font-bold mt-1 mb-1">A new roof before winter</h3>
+              <p class="text-xs m-0" style="color:var(--subtext)">Thanks to 340 supporters, the Yusupov family finished roof repairs before cold weather arrived.</p>
+            </div>
+          </article>
+          <article class="story reveal">
+            <img id="impact-two-image" loading="lazy" alt="Students with new supplies">
+            <div>
+              <span class="badge completed"><i data-lucide="circle-check" style="width:12px"></i> Completed</span>
+              <h3 class="text-sm font-bold mt-1 mb-1">Back to school in Bukhara</h3>
+              <p class="text-xs m-0" style="color:var(--subtext)">Community donations provided uniforms, desks, and textbooks for 58 elementary students.</p>
+            </div>
+          </article>
+          <article class="story-media reveal" id="story-video-card">
+            <div class="story-video">
+              <video id="story-video" muted loop playsinline preload="metadata" poster="https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=800&q=80">
+                <source src="https://videos.pexels.com/video-files/7475682/7475682-hd_1920_1080_25fps.mp4" type="video/mp4">
+              </video>
+              <button type="button" class="story-play" aria-label="Play story video"><i data-lucide="play"></i></button>
+              <span class="badge story-video-tag"><i data-lucide="video" style="width:12px"></i> Watch</span>
+            </div>
+            <div class="story-media-body">
+              <span class="badge completed"><i data-lucide="circle-check" style="width:12px"></i> Ongoing</span>
+              <h3 class="text-sm font-bold mt-1 mb-1">Volunteers, neighbours, friends</h3>
+              <p class="text-xs m-0" style="color:var(--subtext)">Local teams deliver aid boxes door to door. Here is a glimpse of giving in motion.</p>
+            </div>
+          </article>
+
+          <div class="trust-banner mt-5 reveal">
+            <div class="trust-icon"><i data-lucide="shield-check" style="width:26px"></i></div>
+            <div>
+              <h4 class="font-extrabold text-sm mb-1">The 100% verified promise</h4>
+              <p class="text-xs m-0" style="color:var(--subtext)">Every request on DonateUZ undergoes background document verification before it is listed.</p>
+            </div>
+          </div>
+
+          <footer class="home-footer">
+            <div class="ikat-band" aria-hidden="true"></div>
+            DonateUZ — kindness, close to home<br>Payments by Stripe · Data on Neon Postgres
+          </footer>
+        </section>
+
+        <!-- 2. DONATE VIEW -->
+        <section id="donate-view" class="view" aria-label="Donate">
+          <div class="flex items-center gap-2">
+            <span class="compact-mark"><i data-lucide="heart-handshake" style="width:16px"></i></span>
+            <h1 class="text-2xl font-bold my-0">Donate & support</h1>
+          </div>
+          <p class="mt-1 text-xs" style="color:var(--subtext)">Select a verified cause below to contribute directly. Payments are processed securely by Stripe.</p>
+
+          <div class="search-row mt-4">
+            <label class="search" for="campaign-search">
+              <i data-lucide="search" style="width:19px;color:var(--subtext)"></i>
+              <input id="campaign-search" type="search" placeholder="Search campaign title or region" oninput="filterCampaigns()">
+            </label>
+            <button type="button" class="icon-btn" aria-label="Sort campaigns" onclick="cycleSort()">
+              <i data-lucide="arrow-down-up" style="width:19px"></i>
+            </button>
+          </div>
+
+          <div class="chips" aria-label="Campaign categories">
+            <button class="chip active" type="button" data-filter="All" onclick="setFilter(this)">All causes</button>
+            <button class="chip" type="button" data-filter="Medical" onclick="setFilter(this)">Medical</button>
+            <button class="chip" type="button" data-filter="Education" onclick="setFilter(this)">Education</button>
+            <button class="chip" type="button" data-filter="Food" onclick="setFilter(this)">Food relief</button>
+            <button class="chip" type="button" data-filter="Relief" onclick="setFilter(this)">Disaster relief</button>
+          </div>
+
+          <div class="flex items-center justify-between mt-4">
+            <h2 class="m-0 font-bold text-base">Active campaigns</h2>
+            <span id="sort-label" class="text-xs font-bold" style="color:var(--subtext)">Most urgent</span>
+          </div>
+
+          <div id="campaign-list" class="campaign-grid"></div>
+          <p id="campaign-loading" class="empty mt-4">Loading campaigns…</p>
+          <p id="no-campaigns" class="empty hidden">No campaigns match that search. Try another query or category.</p>
+        </section>
+
+        <!-- 3. REQUEST VIEW -->
+        <section id="request-view" class="view" aria-label="Request support">
+          <span class="compact-mark"><i data-lucide="file-heart" style="width:16px"></i></span>
+          <h1 class="text-2xl font-bold mt-3 mb-1">Request support</h1>
+          <p class="text-xs mt-0 mb-5" style="color:var(--subtext)">Tell us about the support your community needs. Every request is verified before listing.</p>
+
+          <div class="steps" aria-label="Request progress">
+            <div class="step active" id="step-1"><span class="step-dot">1</span><span class="step-text">Details</span></div>
+            <div class="step" id="step-2"><span class="step-dot">2</span><span class="step-text">Documents</span></div>
+            <div class="step" id="step-3"><span class="step-dot">3</span><span class="step-text">Review</span></div>
+          </div>
+
+          <form id="support-form" onsubmit="submitSupport(event)">
+            <div id="support-step-one">
+              <label class="field-label" for="support-title">Campaign title</label>
+              <input id="support-title" class="field" required maxlength="80" placeholder="e.g. Treatment support for family member">
+              <label class="field-label" for="support-category">Category</label>
+              <select id="support-category" class="field">
+                <option>Medical</option>
+                <option>Education</option>
+                <option>Food</option>
+                <option>Relief</option>
+              </select>
+              <label class="field-label" for="support-region">Region</label>
+              <input id="support-region" class="field" required placeholder="e.g. Bukhara">
+              <label class="field-label" for="support-target">Target amount (USD)</label>
+              <input id="support-target" class="field" required type="number" min="10" step="1" placeholder="1500">
+              <label class="field-label" for="support-story">Tell us what support is needed</label>
+              <textarea id="support-story" class="field" required rows="4" maxlength="700" placeholder="Share a clear, respectful summary of the situation."></textarea>
+              <button class="primary-btn w-full mt-5" type="button" onclick="supportStep(2)">Continue to documents</button>
+            </div>
+
+            <div id="support-step-two" class="hidden">
+              <div class="upload">
+                <i data-lucide="upload-cloud" style="width:30px" class="mx-auto mb-2"></i>
+                <p class="font-bold text-sm mb-1">Upload verification documents</p>
+                <p class="text-xs mt-0 mb-3">This demo doesn't upload files yet — attach real document storage (e.g. S3) before going live.</p>
+                <input id="document-upload" type="file" class="max-w-full text-xs" accept=".jpg,.jpeg,.png,.pdf" aria-label="Select supporting document">
+              </div>
+              <button class="primary-btn w-full mt-5" type="button" onclick="supportStep(3)">Review request</button>
+              <button class="secondary-btn w-full mt-2" type="button" onclick="supportStep(1)">Back</button>
+            </div>
+
+            <div id="support-step-three" class="hidden">
+              <div class="notice">
+                <strong>Review before submitting</strong><br>
+                Your request will be submitted for verification by DonateUZ administrators.
+              </div>
+              <div id="support-review" class="receipt mt-4"></div>
+              <button id="support-submit" class="primary-btn w-full mt-5" type="submit">Submit for review</button>
+              <button class="secondary-btn w-full mt-2" type="button" onclick="supportStep(2)">Back</button>
+            </div>
+          </form>
+
+          <div id="support-success" class="empty hidden">
+            <i data-lucide="circle-check-big" style="width:38px;color:var(--success)"></i>
+            <h2 class="text-lg font-extrabold mt-2">Request submitted for review</h2>
+            <p class="text-xs" style="color:var(--subtext)">A team member will review your details shortly.</p>
+            <button class="primary-btn mt-3" type="button" onclick="showView('home')">Return to home</button>
+          </div>
+        </section>
+
+        <!-- 4. PROFILE VIEW -->
+        <section id="profile-view" class="view" aria-label="Profile">
+
+          <!-- Shown when signed out -->
+          <div id="profile-signed-out" class="empty">
+            <i data-lucide="user-round" style="width:32px"></i>
+            <p class="font-bold mb-1">Sign in to see your profile</p>
+            <p class="text-xs m-0 mb-4">Track your donations, saved campaigns, and receipts.</p>
+            <button class="primary-btn" type="button" onclick="openAuthSheet('login')">Sign in</button>
+          </div>
+
+          <!-- Shown when signed in -->
+          <div id="profile-signed-in" class="hidden">
+            <div class="flex items-center gap-3">
+              <div class="logo-mark" style="width:58px;height:58px;border-radius:999px;font-size:1.3rem" id="profile-avatar-initial">A</div>
+              <div>
+                <h1 id="profile-name" class="text-xl font-bold m-0">–</h1>
+                <p id="profile-email" class="text-xs m-0 mt-1" style="color:var(--subtext)">–</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mt-4">
+              <div class="mini-stat">
+                <span>Giving total</span>
+                <strong id="giving-total" class="block mt-1">$0</strong>
+              </div>
+              <div class="mini-stat">
+                <span>Donations</span>
+                <strong id="donation-count" class="block mt-1">0</strong>
+              </div>
+            </div>
+
+            <h2 class="section-title">Saved campaigns</h2>
+            <div id="saved-list" class="space-y-3"></div>
+            <div id="saved-empty" class="empty">
+              <i data-lucide="bookmark-x" style="width:32px"></i>
+              <p class="font-bold mb-1">Nothing saved yet</p>
+              <p class="text-xs m-0">Bookmark a campaign to quickly return to it whenever you are ready.</p>
+            </div>
+
+            <h2 class="section-title">Donation history</h2>
+            <div id="history-list" class="space-y-2"></div>
+            <div id="history-empty" class="empty">Completed donations will appear here with receipts.</div>
+
+            <button id="admin-panel-btn" class="secondary-btn w-full mt-4 hidden" type="button" onclick="openSheet('admin-sheet')">
+              <i data-lucide="shield-check" style="width:18px"></i> Admin review panel
+            </button>
+            <button class="secondary-btn w-full mt-2" type="button" onclick="handleSignOut()">
+              <i data-lucide="log-out" style="width:18px"></i> Sign out
+            </button>
+          </div>
+        </section>
+
+        <!-- 5. SETTINGS VIEW -->
+        <section id="settings-view" class="view" aria-label="Settings">
+          <span class="compact-mark"><i data-lucide="settings-2" style="width:16px"></i></span>
+          <h1 class="text-2xl font-bold mt-3 mb-1">Settings</h1>
+          <p class="text-xs mt-0" style="color:var(--subtext)">Manage preferences and app configuration.</p>
+
+          <div class="settings-group">
+            <h2 class="section-title">Account & security</h2>
+            <div class="settings-row">
+              <i data-lucide="mail"></i>
+              <span><strong>Signed in as</strong><small id="settings-account-email">Not signed in</small></span>
+            </div>
+            <button class="settings-row" type="button" id="settings-auth-action" onclick="openAuthSheet('login')">
+              <i data-lucide="log-in"></i>
+              <span><strong>Sign in / Create account</strong><small>Access your donation history across devices</small></span>
+              <i data-lucide="chevron-right"></i>
+            </button>
+          </div>
+
+          <div class="settings-group">
+            <h2 class="section-title">Appearance & accessibility</h2>
+            <div class="settings-row">
+              <i data-lucide="moon"></i>
+              <span><strong>Dark mode</strong><small>Deep tilework theme for night reading</small></span>
+              <button id="settings-dark-toggle" type="button" class="switch" aria-label="Dark mode" aria-pressed="false" onclick="toggleSetting('darkMode',this)"><span></span></button>
+            </div>
+            <div class="settings-row">
+              <i data-lucide="sparkles"></i>
+              <span><strong>Reduce motion</strong><small>Minimise transitions and animations</small></span>
+              <button id="motion-toggle" type="button" class="switch" aria-label="Reduce motion" aria-pressed="false" onclick="toggleSetting('reduceMotion',this)"><span></span></button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <h2 class="section-title">Notifications</h2>
+            <div class="settings-row">
+              <i data-lucide="bell"></i>
+              <span><strong>Push notifications</strong><small>Updates on saved causes</small></span>
+              <button class="switch setting-switch" data-setting="pushNotifications" type="button" aria-label="Push notifications" aria-pressed="false" onclick="toggleSetting('pushNotifications',this)"><span></span></button>
+            </div>
+          </div>
+
+          <button class="secondary-btn w-full mt-4" type="button" onclick="openSheet('settings-sheet')">
+            <i data-lucide="info" style="width:18px"></i> Development notes & architecture
+          </button>
+        </section>
+
+      <!-- ADMIN DASHBOARD VIEW -->
+      <section id="admin-dashboard-view" class="view" aria-label="Admin dashboard">
+        <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <div class="flex items-center gap-2">
+            <span class="compact-mark"><i data-lucide="shield-check" style="width:16px"></i></span>
+            <h1 class="text-2xl font-bold my-0">Admin dashboard</h1>
+          </div>
+          <div class="flex items-center gap-2">
+            <p class="text-xs self-center hidden sm:block" style="color:var(--subtext)">Platform overview and management.</p>
+            <button type="button" class="primary-btn text-sm" onclick="openCreateCampaignModal()">
+              <i data-lucide="plus" style="width:16px"></i> Create campaign
+            </button>
+          </div>
+        </div>
+
+        <!-- Admin Tabs -->
+        <div class="admin-tabs" role="tablist">
+          <button type="button" class="admin-tab active" data-tab="stats" role="tab" onclick="switchAdminTab('stats')">
+            <i data-lucide="layout-dashboard" style="width:16px"></i> Overview
+          </button>
+          <button type="button" class="admin-tab" data-tab="campaigns" role="tab" onclick="switchAdminTab('campaigns')">
+            <i data-lucide="heart-handshake" style="width:16px"></i> Campaigns
+          </button>
+          <button type="button" class="admin-tab" data-tab="donations" role="tab" onclick="switchAdminTab('donations')">
+            <i data-lucide="dollar-sign" style="width:16px"></i> Donations
+          </button>
+          <button type="button" class="admin-tab" data-tab="users" role="tab" onclick="switchAdminTab('users')">
+            <i data-lucide="users" style="width:16px"></i> Users
+          </button>
+          <button type="button" class="admin-tab" data-tab="requests" role="tab" onclick="switchAdminTab('requests')">
+            <i data-lucide="message-square" style="width:16px"></i> Support
+          </button>
+        </div>
+
+        <!-- Stats Tab -->
+        <div id="admin-tab-stats" class="admin-tab-panel active">
+          <div id="admin-stats" class="grid grid-cols-2 gap-3 mt-2"></div>
+        </div>
+
+        <!-- Campaigns Tab -->
+        <div id="admin-tab-campaigns" class="admin-tab-panel hidden">
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="admin-campaigns-search" class="field flex-1" placeholder="Search campaigns..." oninput="filterAdminCampaigns()">
+            <select id="admin-campaigns-status-filter" class="field" onchange="filterAdminCampaigns()" style="width:auto">
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div id="admin-campaigns" class="campaign-grid"></div>
+          <div id="admin-campaigns-empty" class="empty hidden">No campaigns found.</div>
+          <div id="admin-campaigns-pagination" class="admin-pagination mt-4"></div>
+        </div>
+
+        <!-- Donations Tab -->
+        <div id="admin-tab-donations" class="admin-tab-panel hidden">
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="admin-donations-search" class="field flex-1" placeholder="Search donations..." oninput="filterAdminDonations()">
+            <select id="admin-donations-status-filter" class="field" onchange="filterAdminDonations()" style="width:auto">
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="refunded">Refunded</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <select id="admin-donations-recurring-filter" class="field" onchange="filterAdminDonations()" style="width:auto">
+              <option value="">All Types</option>
+              <option value="true">Recurring</option>
+              <option value="false">One-time</option>
+            </select>
+          </div>
+          <div class="flex justify-end gap-2 mb-3">
+            <button type="button" class="secondary-btn text-sm" onclick="exportAdminDonations()">
+              <i data-lucide="download" style="width:14px"></i> Export CSV
+            </button>
+          </div>
+          <div id="admin-donations" class="space-y-2"></div>
+          <div id="admin-donations-empty" class="empty hidden">No donations found.</div>
+          <div id="admin-donations-pagination" class="admin-pagination mt-4"></div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="admin-tab-users" class="admin-tab-panel hidden">
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="admin-users-search" class="field flex-1" placeholder="Search users..." oninput="filterAdminUsers()">
+            <select id="admin-users-role-filter" class="field" onchange="filterAdminUsers()" style="width:auto">
+              <option value="">All Roles</option>
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="flex justify-end gap-2 mb-3">
+            <button type="button" class="secondary-btn text-sm" onclick="exportAdminUsers()">
+              <i data-lucide="download" style="width:14px"></i> Export CSV
+            </button>
+          </div>
+          <div id="admin-users" class="space-y-2"></div>
+          <div id="admin-users-empty" class="empty hidden">No users found.</div>
+          <div id="admin-users-pagination" class="admin-pagination mt-4"></div>
+        </div>
+
+        <!-- Support Requests Tab -->
+        <div id="admin-tab-requests" class="admin-tab-panel hidden">
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="admin-requests-search" class="field flex-1" placeholder="Search requests..." oninput="filterAdminRequests()">
+            <select id="admin-requests-status-filter" class="field" onchange="filterAdminRequests()" style="width:auto">
+              <option value="">All Status</option>
+              <option value="pending_review">Pending Review</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div id="admin-support-requests" class="space-y-2"></div>
+          <div id="admin-support-empty" class="empty hidden">No support requests found.</div>
+          <div id="admin-requests-pagination" class="admin-pagination mt-4"></div>
+        </div>
+
+        <!-- Create / Edit Campaign Modal -->
+        <div id="create-campaign-modal" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Create or edit campaign">
+          <div class="sheet">
+            <div class="sheet-handle"></div>
+            <button type="button" class="icon-btn float-right" aria-label="Close" onclick="closeCampaignModal()"><i data-lucide="x"></i></button>
+            <h2 id="cc-modal-title" class="text-xl font-bold mb-4">Create new campaign</h2>
+            <form id="create-campaign-form" onsubmit="handleCampaignSubmit(event)">
+              <label class="field-label" for="cc-title">Title <span class="text-error">*</span></label>
+              <input id="cc-title" class="field" required maxlength="120" placeholder="e.g. Clean Water for Khorezm Village">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="field-label" for="cc-category">Category <span class="text-error">*</span></label>
+                  <select id="cc-category" class="field" required>
+                    <option value="">Select category</option>
+                    <option value="Medical">Medical</option>
+                    <option value="Education">Education</option>
+                    <option value="Food">Food Relief</option>
+                    <option value="Relief">Disaster Relief</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="cc-region">Region <span class="text-error">*</span></label>
+                  <input id="cc-region" class="field" required maxlength="80" placeholder="e.g. Khorezm">
+                </div>
+              </div>
+              <label class="field-label" for="cc-story">Story <span class="text-error">*</span></label>
+              <textarea id="cc-story" class="field" rows="4" required maxlength="5000" placeholder="Describe the cause, who it helps, and why it matters..."></textarea>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="field-label" for="cc-goal">Goal Amount (USD) <span class="text-error">*</span></label>
+                  <input id="cc-goal" class="field" type="number" step="1" min="1" required placeholder="5000">
+                </div>
+                <div>
+                  <label class="field-label" for="cc-urgency">Urgency Level <span class="text-error">*</span></label>
+                  <select id="cc-urgency" class="field" required>
+                    <option value="3">Normal (3)</option>
+                    <option value="2">Moderate (2)</option>
+                    <option value="1">Urgent (1)</option>
+                    <option value="4">Low (4)</option>
+                    <option value="5">Lowest (5)</option>
+                  </select>
+                </div>
+              </div>
+              <div id="cc-status-group" class="grid hidden">
+                <div>
+                  <label class="field-label" for="cc-status">Status</label>
+                  <select id="cc-status" class="field">
+                    <option value="active">Active</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+              </div>
+              <label class="field-label" for="cc-image-seed">Image Seed (optional)</label>
+              <input id="cc-image-seed" class="field" placeholder="custom-seed-for-photo">
+              <p class="text-caption text-xs" style="color:var(--subtext)">Leave blank to auto-generate from title. Used for picsum.photos seed.</p>
+              <div class="flex gap-2 mt-4">
+                <button type="button" class="secondary-btn flex-1" onclick="closeCampaignModal()">Cancel</button>
+                <button type="submit" class="primary-btn flex-1" id="cc-submit-btn">Create campaign</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      </main>
+
+      <!-- BOTTOM NAVIGATION -->
+      <nav class="bottom-nav" aria-label="Primary navigation">
+        <button class="nav-btn active" type="button" data-nav="home" onclick="showView('home')">
+          <i data-lucide="house"></i><span>Home</span>
+        </button>
+        <button class="nav-btn" type="button" data-nav="donate" aria-label="Donate" onclick="showView('donate')">
+          <i data-lucide="heart-handshake"></i><span>Donate</span>
+        </button>
+        <button class="nav-btn" type="button" data-nav="request" onclick="showView('request')">
+          <i data-lucide="plus-circle"></i><span>Request</span>
+        </button>
+        <button class="nav-btn" type="button" data-nav="profile" aria-label="Profile" onclick="showView('profile')">
+          <i data-lucide="user-round"></i><span>Profile</span>
+        </button>
+        <button class="nav-btn" type="button" data-nav="settings" id="nav-settings" aria-label="Settings" onclick="showView('settings')">
+          <i data-lucide="settings-2"></i><span>Settings</span>
+        </button>
+        <button class="nav-btn" type="button" data-nav="admin-dashboard" id="nav-admin" style="display:none" aria-label="Admin dashboard" onclick="showView('admin-dashboard')">
+          <i data-lucide="shield-check"></i><span>Admin</span>
+        </button>
+      </nav>
+
+      <!-- AUTH SHEET (Login / Register) -->
+      <div id="auth-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Sign in or create account">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <button type="button" class="icon-btn float-right" aria-label="Close" onclick="closeSheet('auth-sheet')"><i data-lucide="x"></i></button>
+
+          <div class="flex gap-2 mb-4" role="tablist">
+            <button type="button" id="auth-tab-login" class="chip active" onclick="setAuthMode('login')">Sign in</button>
+            <button type="button" id="auth-tab-register" class="chip" onclick="setAuthMode('register')">Create account</button>
+          </div>
+
+          <p id="auth-error" class="notice hidden" style="border-left-color:var(--error)"></p>
+
+          <form id="login-form" onsubmit="handleLogin(event)">
+            <label class="field-label" for="login-email">Email</label>
+            <input id="login-email" class="field" type="email" required placeholder="you@example.com">
+            <label class="field-label" for="login-password">Password</label>
+            <input id="login-password" class="field" type="password" required placeholder="••••••••">
+            <button class="primary-btn w-full mt-5" type="submit">Sign in</button>
+          </form>
+
+          <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
+            <label class="field-label" for="register-name">Full name</label>
+            <input id="register-name" class="field" required placeholder="Aziza Karimova">
+            <label class="field-label" for="register-email">Email</label>
+            <input id="register-email" class="field" type="email" required placeholder="you@example.com">
+            <label class="field-label" for="register-password">Password</label>
+            <input id="register-password" class="field" type="password" required minlength="8" placeholder="At least 8 characters">
+            <button class="primary-btn w-full mt-5" type="submit">Create account</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Notifications Sheet -->
+      <div id="notifications-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Notifications">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-xl font-bold m-0">Notifications</h2>
+            <button type="button" class="text-xs font-bold bg-transparent border-0" style="color:var(--primary)" onclick="clearNotifBadge()">Mark all as read</button>
+          </div>
+          <div class="space-y-2">
+            <div class="notice">
+              <strong>Welcome to DonateUZ!</strong><br>
+              Explore verified Uzbek campaigns, save causes, or submit a support request.
+            </div>
+          </div>
+          <button class="secondary-btn w-full mt-4" type="button" onclick="closeSheet('notifications-sheet')">Done</button>
+        </div>
+      </div>
+
+      <!-- Campaign Details Sheet -->
+      <div id="campaign-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Campaign details">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <button type="button" class="icon-btn float-right" aria-label="Close details" onclick="closeSheet('campaign-sheet')"><i data-lucide="x"></i></button>
+          <img id="detail-image" class="w-full h-48 object-cover rounded-2xl mt-2" alt="">
+          <span id="detail-badge" class="badge mt-4"></span>
+          <h2 id="detail-title" class="text-xl font-bold mt-3 mb-2"></h2>
+          <p id="detail-story" class="text-sm leading-relaxed" style="color:var(--subtext)"></p>
+          <div class="progress-track mt-4"><div id="detail-progress" class="progress-bar"></div></div>
+          <p id="detail-amount" class="text-sm font-bold mt-2" style="color:var(--primary)"></p>
+          <div class="flex gap-2 mt-5">
+            <button id="detail-save" class="secondary-btn flex-1" type="button" onclick="toggleCurrentSave()"><i data-lucide="bookmark"></i>Save</button>
+            <button class="primary-btn flex-1" type="button" onclick="openDonation()"><i data-lucide="heart"></i>Donate</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Donation Sheet -->
+      <div id="donation-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Donate">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <button type="button" class="icon-btn float-right" aria-label="Close donation" onclick="closeSheet('donation-sheet')"><i data-lucide="x"></i></button>
+          <span class="badge"><span class="status-dot"></span> Secure payment via Stripe</span>
+          <h2 id="donate-title" class="text-xl font-bold mt-2">Donate</h2>
+          <p class="notice text-xs">You'll be redirected to Stripe's secure checkout to enter your card details. Use test card 4242 4242 4242 4242 while in test mode.</p>
+
+          <label class="field-label">Choose amount (USD)</label>
+          <div class="amounts" id="donation-amounts">
+            <button type="button" class="amount" data-amount="1000" onclick="chooseAmount(this,1000)">$10</button>
+            <button type="button" class="amount selected" data-amount="2500" onclick="chooseAmount(this,2500)">$25</button>
+            <button type="button" class="amount" data-amount="5000" onclick="chooseAmount(this,5000)">$50</button>
+          </div>
+
+          <label class="field-label" for="custom-amount">Or enter a custom amount</label>
+          <input id="custom-amount" class="field" type="number" min="1" step="1" placeholder="e.g. 35">
+
+          <label class="field-label" for="donor-name">Name for receipt</label>
+          <input id="donor-name" class="field" maxlength="60" placeholder="Your name">
+
+          <div class="toggle">
+            <div>
+              <strong>Give anonymously</strong>
+              <p class="text-xs m-0 mt-1" style="color:var(--subtext)">Your name won't appear on the public support feed.</p>
+            </div>
+            <button id="anonymous-toggle" type="button" class="switch" aria-pressed="false" aria-label="Toggle anonymous donation" onclick="toggleAnonymous()"><span></span></button>
+          </div>
+
+          <div class="toggle">
+            <div>
+              <strong>Make this monthly</strong>
+              <p class="text-xs m-0 mt-1" style="color:var(--subtext)">Repeat this amount automatically every month.</p>
+            </div>
+            <button id="recurring-toggle" type="button" class="switch" aria-pressed="false" aria-label="Toggle monthly giving" onclick="toggleRecurring()"><span></span></button>
+          </div>
+
+          <button id="pay-button" class="primary-btn w-full mt-5" type="button" onclick="startCheckout()">
+            <i data-lucide="lock" style="width:16px"></i> Continue to secure payment
+          </button>
+        </div>
+      </div>
+
+      <!-- Receipt Sheet -->
+      <div id="receipt-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Donation receipt">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <button type="button" class="icon-btn float-right" aria-label="Close receipt" onclick="closeSheet('receipt-sheet')"><i data-lucide="x"></i></button>
+          <span class="badge completed"><i data-lucide="circle-check" style="width:14px"></i> Payment confirmed</span>
+          <h2 class="text-xl font-bold mt-3">Thank you for giving</h2>
+          <div id="receipt-content" class="receipt mt-3"></div>
+        </div>
+      </div>
+
+      <!-- Development Architecture Sheet -->
+      <div id="settings-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Settings and architecture">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <h2 class="text-xl font-bold">Development architecture</h2>
+          <div class="notice mt-3">
+            <strong>Real backend, test-mode payments</strong><br>
+            Auth and data are stored in a Neon Postgres database. Donations run through real Stripe Checkout sessions in test mode — no live cards are charged unless you switch to live API keys.
+          </div>
+          <button class="secondary-btn w-full mt-4" type="button" onclick="closeSheet('settings-sheet')">Close</button>
+        </div>
+      </div>
+
+      <!-- Admin Review Panel Sheet -->
+      <div id="admin-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Admin review">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <h2 class="text-xl font-bold">Admin review panel</h2>
+          <p class="text-xs" style="color:var(--subtext)">Pending support submissions stored in the database.</p>
+          <div id="admin-list" class="space-y-3 mt-4"></div>
+          <div id="admin-empty" class="empty">No support requests are awaiting review.</div>
+          <button class="secondary-btn w-full mt-4" type="button" onclick="closeSheet('admin-sheet')">Close</button>
+        </div>
+      </div>
+
+      <!-- Global Toast -->
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

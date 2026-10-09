@@ -1,0 +1,120 @@
+const express = require('express');
+const Stripe = require('stripe');
+const pool = require('../db/pool');
+const { sendDonationReceipt } = require('../services/receipts');
+
+const router = express.Router();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+
+// Marks the donation completed (idempotent) and, outside the request's critical path, emails a receipt.
+async function completeDonation(session) {
+  const result = await pool.query(
+    `UPDATE donations
+       SET status = 'completed', stripe_payment_intent = $1, stripe_subscription_id = $2
+     WHERE stripe_session_id = $3 AND status <> 'completed'
+     RETURNING id`,
+    [session.payment_intent || null, session.subscription || null, session.id]
+  );
+  // Also covers the case where the success-page verify route completed it first.
+  const row = result.rows[0] || (await pool.query('SELECT id FROM donations WHERE stripe_session_id = $1', [session.id])).rows[0];
+  if (row) sendDonationReceipt(row.id, (session.customer_details && session.customer_details.email) || session.customer_email);
+}
+
+// IMPORTANT: this route must receive the RAW request body (see server.js),
+// because Stripe signs the exact byte stream, not the parsed JSON.
+router.post('/', async (req, res) => {
+  const signature = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, signature, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('[webhook] signature verification failed', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        // Only mark paid when money was actually collected (delayed methods report 'unpaid' here).
+        if (session.payment_status === 'paid' || session.payment_status === 'no_payment_required') {
+          await completeDonation(session);
+        }
+        break;
+      }
+
+      case 'checkout.session.async_payment_succeeded': {
+        await completeDonation(event.data.object);
+        break;
+      }
+
+      // Monthly renewal payments for recurring donations. The first invoice
+      // (billing_reason = subscription_create) is already covered by
+      // checkout.session.completed above, so only log later cycles here.
+      // stripe_invoice_id is UNIQUE, so a retried webhook cannot double-count a renewal.
+      case 'invoice.paid': {
+        const invoice = event.data.object;
+        if (invoice.billing_reason === 'subscription_cycle' && invoice.subscription) {
+          const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+          const meta = subscription.metadata || {};
+          if (meta.campaignId) {
+            await pool.query(
+              `INSERT INTO donations
+                (user_id, campaign_id, campaign_title, donor_name, amount_cents, currency, anonymous, recurring, status, stripe_subscription_id, stripe_invoice_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,true,'completed',$8,$9)
+               ON CONFLICT (stripe_invoice_id) WHERE stripe_invoice_id IS NOT NULL DO NOTHING`,
+              [
+                meta.userId || null,
+                meta.campaignId,
+                meta.campaignTitle || meta.campaignId,
+                meta.donorName || 'DonateUZ supporter',
+                invoice.amount_paid,
+                (invoice.currency || 'usd'),
+                meta.anonymous === 'true',
+                subscription.id,
+                invoice.id
+              ]
+            );
+          }
+        }
+        break;
+      }
+
+      // Abandoned or failed checkouts should not sit in 'pending' forever.
+      case 'checkout.session.expired':
+      case 'checkout.session.async_payment_failed': {
+        const session = event.data.object;
+        await pool.query(
+          `UPDATE donations SET status = 'failed' WHERE stripe_session_id = $1 AND status = 'pending'`,
+          [session.id]
+        );
+        break;
+      }
+
+      // A failed renewal doesn't create a donation row (nothing was collected), so just log it.
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        console.warn('[webhook] renewal payment failed for subscription', invoice.subscription);
+        break;
+      }
+
+      // Donor cancelled (or Stripe cancelled after repeated failures): keep a trace for the admin.
+      case 'customer.subscription.deleted': {
+        console.log('[webhook] monthly donation cancelled:', event.data.object.id);
+        break;
+      }
+
+      default:
+        // Unhandled event types are fine to ignore.
+        break;
+    }
+    res.json({ received: true });
+  } catch (err) {
+    console.error('[webhook] handler error', err);
+    // Returning 500 makes Stripe retry the event, which is what we want here.
+    res.status(500).json({ error: 'Webhook handler failed.' });
+  }
+});
+
+module.exports = router;

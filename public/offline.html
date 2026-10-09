@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DonateUZ - Offline</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..900&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js"></script>
+  <style>
+    body {
+      font-family: "Figtree", system-ui, sans-serif;
+      background: linear-gradient(135deg, #0F4C77 0%, #15577F 55%, #0F9E96 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+    }
+    h1 { font-family: "Fraunces", Georgia, serif; }
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: linear-gradient(135deg, #08161C 0%, #0F2530 100%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="text-center p-6" style="color: white;">
+    <i data-lucide="wifi-off" style="width:48px;height:48px"></i>
+    <h1 class="text-2xl font-extrabold mt-4">You appear to be offline</h1>
+    <p class="text-sm opacity-90 mt-2 mb-6">Some parts of DonateUZ may not work until your connection returns.</p>
+    <button type="button" class="bg-white border-0 py-2 px-6 rounded-full font-bold" style="color:#15577F" onclick="location.reload()">
+      Try again
+    </button>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
