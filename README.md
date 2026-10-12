@@ -11,6 +11,19 @@ localStorage mock with:
   source of truth for marking a donation "completed" — the frontend never marks its own payment successful.
 - **Campaigns & donations**: stored in Neon, not localStorage. Campaign progress bars are computed
   live from real completed donations.
+- **Saved campaigns**: bookmarks sync to the account (`saved_campaigns` table) so they follow the
+  donor across devices; guest bookmarks live in localStorage and merge into the account on sign-in.
+- **Deep links**: every view has a URL (`#donate`, `#settings`, ...) and any campaign is shareable
+  as `#campaign/<id>`, with a share button on the campaign sheet (native share on mobile,
+  clipboard fallback).
+- **Email**: donation receipts (at most once per donation) and "goal reached" notifications to
+  every donor of a campaign when it first crosses its funding goal — both idempotent, both
+  safe to retry.
+- **Frontend**: single-page app with a visual identity drawn from Uzbek tilework and suzani
+  embroidery (cobalt/turquoise/terracotta, Fraunces + Figtree), self-hosted hero and story
+  videos, scroll-reveal and count-up animations, dark mode, and a reduce-motion setting.
+  No CSS framework runtime — a small static utility layer in `styles.css` replaced the
+  Tailwind CDN. The offline page loads zero external resources.
 
 ## 1. Create a Neon database
 
@@ -44,8 +57,9 @@ npm run db:migrate
 ```
 
 `db:migrate` runs `db/schema.sql` against your Neon database — creates the `users`,
-`campaigns`, `donations`, and `support_requests` tables, and seeds the four demo campaigns.
-Safe to run again later; it won't duplicate the seed data.
+`campaigns`, `donations`, `support_requests`, and `saved_campaigns` tables (plus the
+`goal_reached_at` / `donor_email` columns used by goal-reached emails), and seeds the four
+demo campaigns. Safe to run again later; it won't duplicate the seed data.
 
 ## 5. Forward Stripe webhooks to your machine (local development)
 
@@ -87,14 +101,17 @@ Neon, and it shows up under Profile → Donation History.
 - **Email:** receipts for completed donations and review outcomes are sent through
   [Resend](https://resend.com). Set `RESEND_API_KEY` and `EMAIL_FROM` in `.env`. Without a key, emails are
   skipped and logged. With Resend's test sender you can only deliver to your own account email; verify a
-  domain for real delivery. A receipt is sent at most once per donation.
+  domain for real delivery. A receipt is sent at most once per donation. When a campaign first
+  crosses its goal, every distinct donor is emailed once (registered users via account email,
+  guests via the email stored from the Stripe session in `donations.donor_email`); the
+  `goal_reached_at` timestamp on the campaign makes retries safe.
 - Re-run `npm run db:migrate` after updating to add the new columns.
 
 ## Project structure
 
 ```
 server.js                Express app; mounts routes (webhook route MUST stay before express.json())
-db/schema.sql             Table definitions + seed campaigns
+db/schema.sql             Table definitions + seed campaigns (idempotent ALTERs for later columns)
 db/migrate.js             Runs schema.sql against DATABASE_URL
 db/make-admin.js          npm run make-admin -- <email>  (grants the admin role)
 db/pool.js                pg connection pool
@@ -102,13 +119,16 @@ middleware/auth.js        JWT cookie helpers + requireAuth / optionalAuth / requ
 routes/auth.js             POST /api/auth/register, /login, /logout · GET /me
 routes/campaigns.js        GET /api/campaigns (live totals from completed donations)
 routes/donations.js        POST /api/donations/checkout · GET /recent · GET /verify/:id · GET /history
+routes/saved.js            GET /api/saved · PUT/DELETE /api/saved/:campaignId — account-synced bookmarks
 routes/stats.js            GET /api/stats — anonymous platform totals for the home page
 routes/support.js          POST /api/support-requests · GET / (admin queue) · POST /:id/approve · POST /:id/reject
 routes/admin.js            Admin dashboard API: stats, campaign CRUD, donation refund/cancel, user roles
-routes/webhooks.js         POST /api/webhooks/stripe — source of truth for payment status
+routes/webhooks.js         POST /api/webhooks/stripe — source of truth for payment status + goal notifications
 services/email.js          Resend wrapper (never throws)
 services/receipts.js       Donation receipt email, sent at most once per donation
+services/goals.js          "Goal reached" donor emails, idempotent via campaigns.goal_reached_at
 public/                    Frontend (index.html, styles.css, script.js) + PWA (manifest.json, sw.js, offline.html)
+public/videos/             Self-hosted hero + story videos (served same-origin; CSP media-src is 'self')
 ```
 
 ## Going to production — things this demo intentionally simplifies
