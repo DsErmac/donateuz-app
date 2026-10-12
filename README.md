@@ -104,7 +104,10 @@ Neon, and it shows up under Profile → Donation History.
   domain for real delivery. A receipt is sent at most once per donation. When a campaign first
   crosses its goal, every distinct donor is emailed once (registered users via account email,
   guests via the email stored from the Stripe session in `donations.donor_email`); the
-  `goal_reached_at` timestamp on the campaign makes retries safe.
+  `goal_reached_at` timestamp on the campaign makes retries safe. Password reset uses the same
+  email pipeline: one-time SHA-256-hashed tokens (1-hour expiry) in `password_resets`, links
+  carrying the raw token only in the URL fragment (`#reset/<token>`), and a successful reset
+  signs the user in.
 - Re-run `npm run db:migrate` after updating to add the new columns.
 
 ## Project structure
@@ -142,7 +145,8 @@ public/videos/             Self-hosted hero + story videos (served same-origin; 
 - **Cookies**: `secure: true` on the auth cookie is already gated on `NODE_ENV=production` —
   make sure you actually set that env var and serve over HTTPS.
 - **Rate limiting** (login/register/checkout/support) and security headers (helmet) are in place.
-  **Email verification / password reset** aren't implemented yet — add them before handling real users.
+  **Password reset** is implemented (see the email notes above). **Email verification** isn't
+  implemented yet — add it before handling real users.
 - **File uploads** for support-request documents aren't implemented (the UI has a file input,
   but nothing persists it) — wire up S3/Cloudinary/etc. before relying on it.
 - **Recurring donations**: monthly renewal payments are logged via the `invoice.paid` webhook
