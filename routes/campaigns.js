@@ -6,7 +6,7 @@ const router = express.Router();
 const CAMPAIGN_QUERY = `
   SELECT
     c.id, c.title, c.category, c.region, c.story, c.image_seed,
-    c.goal_amount_cents, c.urgency, c.status,
+    c.goal_amount_cents, c.urgency, c.status, c.goal_reached_at,
     c.seed_raised_amount_cents + COALESCE(SUM(d.amount_cents) FILTER (WHERE d.status = 'completed'), 0) AS raised_amount_cents
   FROM campaigns c
   LEFT JOIN donations d ON d.campaign_id = c.id
@@ -28,6 +28,7 @@ router.get('/', async (req, res) => {
       urgency: row.urgency,
       goalAmountCents: Number(row.goal_amount_cents),
       raisedAmountCents: Number(row.raised_amount_cents),
+      goalReachedAt: row.goal_reached_at,
       progress: Math.min(100, Math.round((Number(row.raised_amount_cents) / Number(row.goal_amount_cents)) * 100))
     }));
     res.json({ campaigns });

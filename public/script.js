@@ -157,6 +157,7 @@ let isAnonymous = false, isRecurring = false;
 let lastDonation = null;
 let historyRecords = [];
 let adminRecords = [];
+let recentDonations = []; // feeds the saved-campaign notifications
 const saved = new Set(JSON.parse(localStorage.getItem('donateuz-saved') || '[]'));
 
 // Admin dashboard state
@@ -217,7 +218,15 @@ function applyHashRoute() {
   const hash = location.hash.replace(/^#/, '');
   if (!hash) return;
   const [route, param] = hash.split('/');
-  if (route === 'campaign' && param && campaigns[param]) {
+  if (route === 'reset' && param) {
+    // Password-reset links put the one-time token in the fragment so it never
+    // reaches server logs; swap it for a clean home URL immediately.
+    pendingResetToken = param;
+    history.replaceState(null, '', location.pathname);
+    setAuthMode('reset');
+    document.getElementById('auth-error').classList.add('hidden');
+    openSheet('auth-sheet');
+  } else if (route === 'campaign' && param && campaigns[param]) {
     if (!document.querySelector('.view.active')) showView('home');
     openCampaign(param);
   } else if (ROUTABLE_VIEWS.includes(route)) {
@@ -235,6 +244,7 @@ function navigateToDonateWithCategory(category) {
 function openSheet(id) {
   document.getElementById(id).classList.add('open');
   if (id === 'admin-sheet') loadAdminRequests();
+  if (id === 'notifications-sheet') renderNotifications();
 }
 function closeSheet(id) {
   document.getElementById(id).classList.remove('open');
@@ -244,6 +254,7 @@ function closeSheet(id) {
   }
 }
 function clearNotifBadge() {
+  localStorage.setItem('donateuz-notif-seen', String(Date.now()));
   const badge = document.getElementById('notif-badge');
   if (badge) badge.classList.add('hidden');
   showToast('Notifications marked as read');
@@ -270,10 +281,15 @@ function openAuthSheet(mode) {
 
 function setAuthMode(mode) {
   const isLogin = mode === 'login';
+  const isRegister = mode === 'register';
+  const isForgot = mode === 'forgot';
+  const isReset = mode === 'reset';
   document.getElementById('auth-tab-login').classList.toggle('active', isLogin);
-  document.getElementById('auth-tab-register').classList.toggle('active', !isLogin);
+  document.getElementById('auth-tab-register').classList.toggle('active', isRegister);
   document.getElementById('login-form').classList.toggle('hidden', !isLogin);
-  document.getElementById('register-form').classList.toggle('hidden', isLogin);
+  document.getElementById('register-form').classList.toggle('hidden', !isRegister);
+  document.getElementById('forgot-form').classList.toggle('hidden', !isForgot);
+  document.getElementById('reset-form').classList.toggle('hidden', !isReset);
 }
 
 function showAuthError(message) {
@@ -314,6 +330,44 @@ function onAuthSuccess(user, message) {
   showToast(message);
   renderProfile();
   syncSavedFromServer();
+}
+
+let pendingResetToken = null;
+
+async function handleForgotPassword(e) {
+  e.preventDefault();
+  const btn = document.getElementById('forgot-submit');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    await api('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email: document.getElementById('forgot-email').value.trim() })
+    });
+    showAuthError('If that email has an account, a reset link is on its way. Check your inbox (and spam folder).');
+  } catch (err) {
+    showAuthError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send reset link';
+  }
+}
+
+async function handleResetPassword(e) {
+  e.preventDefault();
+  if (!pendingResetToken) { showAuthError('This reset link is invalid. Request a new one.'); return; }
+  try {
+    await api('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token: pendingResetToken, password: document.getElementById('reset-password').value })
+    });
+    pendingResetToken = null;
+    const { user } = await api('/auth/me');
+    if (user) onAuthSuccess(user, 'Password updated — welcome back!');
+    else { showAuthError('Password updated. You can sign in now.'); setAuthMode('login'); }
+  } catch (err) {
+    showAuthError(err.message);
+  }
 }
 
 async function handleSignOut() {
@@ -398,6 +452,7 @@ async function loadRecentActivity() {
   if (!feed) return;
   try {
     const { donations } = await api('/donations/recent');
+    recentDonations = donations;
     if (!donations.length) {
       feed.innerHTML = `
         <div class="activity-item" style="border-color:var(--border)">
@@ -436,8 +491,52 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-/* ---------- Skeleton placeholders while campaigns load ---------- */
-function renderCampaignSkeletons() {
+/* ---------- Notifications: real updates on saved campaigns ----------
+   Sources: goal-reached milestones (campaigns.goalReachedAt) and recent
+   completed donations to saved causes. The bell dot shows anything newer
+   than the last "mark all as read" timestamp in localStorage. */
+function notifSeenTimestamp() { return Number(localStorage.getItem('donateuz-notif-seen') || 0); }
+
+function buildNotifications() {
+  const items = [];
+  Object.values(campaigns).forEach(c => {
+    if (saved.has(c.id) && c.goalReachedAt) {
+      items.push({ type: 'goal', title: c.title, at: c.goalReachedAt });
+    }
+  });
+  recentDonations.forEach(d => {
+    if (d.campaignId && saved.has(d.campaignId)) {
+      items.push({ type: 'donation', campaignTitle: d.campaignTitle, donorName: d.donorName, amountCents: d.amountCents, currency: d.currency, at: d.createdAt });
+    }
+  });
+  return items.sort((a, b) => new Date(b.at) - new Date(a.at));
+}
+
+function updateNotifBadge() {
+  const hasNew = buildNotifications().some(i => new Date(i.at).getTime() > notifSeenTimestamp());
+  const badge = document.getElementById('notif-badge');
+  if (badge) badge.classList.toggle('hidden', !hasNew);
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notifications-list');
+  if (!list) return;
+  updateNotifBadge();
+  const items = buildNotifications();
+  if (!saved.size) {
+    list.innerHTML = '<div class="empty">Save causes you care about — new donations and goal milestones for them will appear here.</div>';
+  } else if (!items.length) {
+    list.innerHTML = '<div class="empty">No updates yet for your saved causes. You will hear when people give or a goal is reached.</div>';
+  } else {
+    list.innerHTML = items.map(i => i.type === 'goal'
+      ? `<div class="notification-item"><div class="activity-avatar"><i data-lucide="trophy" style="width:15px"></i></div><div><span class="font-bold">${esc(i.title)}</span> reached its goal<br><span class="text-xs" style="color:var(--subtext)">${timeAgo(i.at)}</span></div></div>`
+      : `<div class="notification-item"><div class="activity-avatar"><i data-lucide="heart" style="width:15px"></i></div><div><span class="font-bold">${esc(i.donorName)}</span> gave to <span class="font-bold">${esc(i.campaignTitle)}</span><br><span class="text-xs" style="color:var(--subtext)">${money(i.amountCents, i.currency)} · ${timeAgo(i.at)}</span></div></div>`
+    ).join('');
+  }
+  lucide.createIcons();
+}
+
+/* ---------- Skeleton placeholders while campaigns load ---------- */function renderCampaignSkeletons() {
   const list = document.getElementById('campaign-list');
   if (!list) return;
   const loading = document.getElementById('campaign-loading');
@@ -594,6 +693,7 @@ async function syncSavedFromServer() {
       localStorage.setItem('donateuz-saved', JSON.stringify([...saved]));
     }
     if (document.getElementById('profile-view').classList.contains('active')) renderSaved();
+    updateNotifBadge();
   } catch (err) {
     console.warn('[saved] could not sync from server', err.message);
   }
@@ -1749,5 +1849,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadRecentActivity()
   ]);
   applyHashRoute(); // open a shared #campaign/<id> link once the data it needs is loaded
+  updateNotifBadge();
   await handleCheckoutReturn();
 });

@@ -201,6 +201,10 @@ h1, h2, h3, .display { font-family:"Fraunces","Georgia",serif; letter-spacing:-0
 .activity-avatar { width:32px; height:32px; border-radius:50%; background:var(--muted); color:var(--primary); display:grid; place-items:center; flex:0 0 32px; }
 .activity-avatar svg { width:15px; height:15px; }
 
+/* ---------- Notifications ---------- */
+.notification-item { display:flex; align-items:flex-start; gap:11px; padding:10px 0; border-bottom:1px solid var(--border); }
+.notification-item:last-child { border-bottom:0; }
+
 /* ---------- Impact stories ---------- */
 .story { display:flex; align-items:center; gap:14px; padding:12px; background:var(--surface); border:1px solid var(--border); border-radius:18px; margin-bottom:10px; max-width:600px; }
 .story img { width:74px; height:74px; object-fit:cover; border-radius:14px; background:var(--muted); flex:0 0 74px; }

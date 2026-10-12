@@ -87,7 +87,7 @@ router.post('/checkout', optionalAuth, async (req, res) => {
 router.get('/recent', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT campaign_title, donor_name, anonymous, amount_cents, currency, created_at
+      `SELECT campaign_id, campaign_title, donor_name, anonymous, amount_cents, currency, created_at
        FROM donations
        WHERE status = 'completed'
        ORDER BY created_at DESC
@@ -95,6 +95,7 @@ router.get('/recent', async (req, res) => {
     );
     res.json({
       donations: result.rows.map(row => ({
+        campaignId: row.campaign_id,
         campaignTitle: row.campaign_title,
         donorName: row.anonymous ? 'Anonymous donor' : (row.donor_name || 'DonateUZ supporter'),
         amountCents: Number(row.amount_cents),

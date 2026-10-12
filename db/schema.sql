@@ -97,6 +97,19 @@ ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS goal_reached_at timestamptz;
 -- is stored here to make goal-reached notifications reachable for them too.
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS donor_email text;
 
+-- ---------- Password reset ----------
+-- Only the SHA-256 hash of each token is stored; the raw token lives solely in
+-- the emailed link. One-time use, 1-hour expiry.
+CREATE TABLE IF NOT EXISTS password_resets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash text UNIQUE NOT NULL,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
+
 -- ---------- Seed campaigns (safe to re-run) ----------
 INSERT INTO campaigns (id, title, category, region, story, image_seed, goal_amount_cents, seed_raised_amount_cents, urgency)
 VALUES

@@ -1,7 +1,9 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const pool = require('../db/pool');
 const { signToken, setAuthCookie, clearAuthCookie, optionalAuth } = require('../middleware/auth');
+const { sendEmail } = require('../services/email');
 
 const router = express.Router();
 
@@ -61,6 +63,83 @@ router.post('/login', async (req, res) => {
 router.post('/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({ ok: true });
+});
+
+// ---------- Password reset ----------
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Always answers 200 so the endpoint can't be used to learn whether an email
+// is registered. The reset link is a raw one-time token in the URL fragment
+// (never a server-logged query string); only its SHA-256 is stored.
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!isValidEmail(email)) return res.json({ ok: true });
+
+    const user = await pool.query('SELECT id, name FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (user.rows[0] && process.env.RESEND_API_KEY) {
+      const raw = crypto.randomBytes(32).toString('hex');
+      await pool.query(
+        `INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')`,
+        [user.rows[0].id, hashToken(raw)]
+      );
+      // Invalidate any older unused tokens for this account.
+      await pool.query(
+        `UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL AND token_hash <> $2`,
+        [user.rows[0].id, hashToken(raw)]
+      );
+      const link = `${APP_URL}/#reset/${raw}`;
+      const sent = await sendEmail({
+        to: email.toLowerCase(),
+        subject: 'Reset your DonateUZ password',
+        html: `<p>Hi there, we received a request to reset your DonateUZ password.</p>
+               <p><a href="${link}" style="display:inline-block;background:#1d6fa3;color:#fff;text-decoration:none;padding:10px 22px;border-radius:10px;font-weight:bold">Choose a new password</a></p>
+               <p style="font-size:13px;color:#5b7473">This link works once and expires in 1 hour. If you didn't request it, you can safely ignore this email.</p>`,
+        text: `Reset your DonateUZ password: ${link}\n\nThis link works once and expires in 1 hour. If you didn't request it, you can safely ignore this email.`
+      });
+      console.log(`[auth] password reset requested for ${email.toLowerCase()} — email ${sent ? 'sent' : 'could not be sent'}`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth] forgot-password error', err);
+    res.json({ ok: true }); // never leak account existence through error shapes
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+    if (typeof token !== 'string' || !token) return res.status(400).json({ error: 'This reset link is invalid. Request a new one.' });
+    if (typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (password.length > 72) return res.status(400).json({ error: 'Password must be at most 72 characters.' });
+
+    const claimed = await pool.query(
+      `UPDATE password_resets
+          SET used_at = now()
+        WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+        RETURNING user_id`,
+      [hashToken(token)]
+    );
+    const reset = claimed.rows[0];
+    if (!reset) return res.status(400).json({ error: 'This reset link has expired or was already used. Request a new one.' });
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, reset.user_id]);
+    // A password change voids every other outstanding reset token.
+    await pool.query(`UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [reset.user_id]);
+
+    const user = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [reset.user_id]);
+    if (user.rows[0]) setAuthCookie(res, signToken(user.rows[0])); // signed in on reset
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth] reset-password error', err);
+    res.status(500).json({ error: 'Could not reset the password. Please try again.' });
+  }
 });
 
 router.get('/me', optionalAuth, async (req, res) => {

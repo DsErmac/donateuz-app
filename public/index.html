@@ -592,7 +592,23 @@
             <input id="login-email" class="field" type="email" required placeholder="you@example.com">
             <label class="field-label" for="login-password">Password</label>
             <input id="login-password" class="field" type="password" required placeholder="••••••••">
+            <button type="button" class="text-xs font-bold bg-transparent border-0 p-0 mt-2" style="color:var(--primary)" onclick="setAuthMode('forgot')">Forgot password?</button>
             <button class="primary-btn w-full mt-5" type="submit">Sign in</button>
+          </form>
+
+          <form id="forgot-form" class="hidden" onsubmit="handleForgotPassword(event)">
+            <p class="text-xs mt-0" style="color:var(--subtext)">Enter your account email and we'll send you a one-time link to choose a new password.</p>
+            <label class="field-label" for="forgot-email">Email</label>
+            <input id="forgot-email" class="field" type="email" required placeholder="you@example.com">
+            <button id="forgot-submit" class="primary-btn w-full mt-5" type="submit">Send reset link</button>
+            <button type="button" class="secondary-btn w-full mt-2" onclick="setAuthMode('login')">Back to sign in</button>
+          </form>
+
+          <form id="reset-form" class="hidden" onsubmit="handleResetPassword(event)">
+            <p class="text-xs mt-0" style="color:var(--subtext)">Choose a new password for your account.</p>
+            <label class="field-label" for="reset-password">New password</label>
+            <input id="reset-password" class="field" type="password" required minlength="8" placeholder="At least 8 characters">
+            <button class="primary-btn w-full mt-5" type="submit">Set new password</button>
           </form>
 
           <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
@@ -615,12 +631,7 @@
             <h2 class="text-xl font-bold m-0">Notifications</h2>
             <button type="button" class="text-xs font-bold bg-transparent border-0" style="color:var(--primary)" onclick="clearNotifBadge()">Mark all as read</button>
           </div>
-          <div class="space-y-2">
-            <div class="notice">
-              <strong>Welcome to DonateUZ!</strong><br>
-              Explore verified Uzbek campaigns, save causes, or submit a support request.
-            </div>
-          </div>
+          <div id="notifications-list" class="mt-1"></div>
           <button class="secondary-btn w-full mt-4" type="button" onclick="closeSheet('notifications-sheet')">Done</button>
         </div>
       </div>

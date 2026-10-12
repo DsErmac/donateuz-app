@@ -65,6 +65,7 @@ const supportLimiter = limiter(60, 10, 'Too many requests submitted. Please try 
 
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/donations/checkout', checkoutLimiter);
 app.post('/api/support-requests', supportLimiter);
 
