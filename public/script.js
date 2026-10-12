@@ -192,16 +192,39 @@ function showToast(message, type = 'default') {
 }
 
 /* ================= Navigation ================= */
+// Every view is reachable by URL: #home, #donate, #request, #profile, #settings,
+// and campaign details by #campaign/<id> — so any cause can be shared as a link.
+const ROUTABLE_VIEWS = ['home', 'donate', 'request', 'profile', 'settings', 'admin-dashboard'];
+let activeViewName = 'home';
+
 async function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const target = document.getElementById(name + '-view');
   if (target) target.classList.add('active');
+  activeViewName = name;
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
+  if (ROUTABLE_VIEWS.includes(name) && location.hash !== '#' + name) {
+    history.replaceState(null, '', '#' + name);
+  }
   document.querySelector('.main-content').scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   observeReveals(target);
   if (name === 'profile') renderProfile();
   if (name === 'admin-dashboard') await loadAdminDashboard();
 }
+
+// Handles the hash on first load, manual hash edits, and back/forward.
+function applyHashRoute() {
+  const hash = location.hash.replace(/^#/, '');
+  if (!hash) return;
+  const [route, param] = hash.split('/');
+  if (route === 'campaign' && param && campaigns[param]) {
+    if (!document.querySelector('.view.active')) showView('home');
+    openCampaign(param);
+  } else if (ROUTABLE_VIEWS.includes(route)) {
+    showView(route);
+  }
+}
+window.addEventListener('hashchange', applyHashRoute);
 
 function navigateToDonateWithCategory(category) {
   showView('donate');
@@ -213,7 +236,13 @@ function openSheet(id) {
   document.getElementById(id).classList.add('open');
   if (id === 'admin-sheet') loadAdminRequests();
 }
-function closeSheet(id) { document.getElementById(id).classList.remove('open'); }
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('open');
+  // A shared campaign link (#campaign/x) should return to the page's own URL when closed.
+  if (id === 'campaign-sheet' && location.hash.startsWith('#campaign/')) {
+    history.replaceState(null, '', '#' + activeViewName);
+  }
+}
 function clearNotifBadge() {
   const badge = document.getElementById('notif-badge');
   if (badge) badge.classList.add('hidden');
@@ -626,7 +655,26 @@ function openCampaign(id) {
   const saveBtn = document.getElementById('detail-save');
   saveBtn.innerHTML = saved.has(id) ? '<i data-lucide="bookmark-check"></i>Saved' : '<i data-lucide="bookmark"></i>Save';
   lucide.createIcons();
+  history.replaceState(null, '', '#campaign/' + encodeURIComponent(id));
   openSheet('campaign-sheet');
+}
+
+// Share button on the campaign sheet: native share sheet on mobile, clipboard elsewhere.
+async function shareCurrentCampaign() {
+  const id = currentCampaign;
+  if (!id) return;
+  const c = campaigns[id];
+  const url = location.origin + location.pathname + '#campaign/' + encodeURIComponent(id);
+  if (navigator.share) {
+    try { await navigator.share({ title: c.title, text: `Support "${c.title}" on DonateUZ`, url }); return; }
+    catch (err) { if (err.name === 'AbortError') return; }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied — share it with a friend');
+  } catch (err) {
+    showToast('Could not copy the link. Copy it from the address bar instead.', 'error');
+  }
 }
 
 function toggleCurrentSave() {
@@ -1700,5 +1748,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadPublicStats(),
     loadRecentActivity()
   ]);
+  applyHashRoute(); // open a shared #campaign/<id> link once the data it needs is loaded
   await handleCheckoutReturn();
 });
