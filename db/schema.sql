@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS saved_campaigns (
   PRIMARY KEY (user_id, campaign_id)
 );
 
+-- ---------- Goal-reached notifications ----------
+-- Set once (atomically) when a campaign first crosses its goal; donors are
+-- emailed at that moment. Also lets the UI show "goal reached" state.
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS goal_reached_at timestamptz;
+
+-- Guest donors have no account, so their receipt email (from the Stripe session)
+-- is stored here to make goal-reached notifications reachable for them too.
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS donor_email text;
+
 -- ---------- Seed campaigns (safe to re-run) ----------
 INSERT INTO campaigns (id, title, category, region, story, image_seed, goal_amount_cents, seed_raised_amount_cents, urgency)
 VALUES

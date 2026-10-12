@@ -35,11 +35,12 @@ async function sendEmail({ to, subject, html, text }) {
 }
 
 function layout(title, bodyHtml) {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#14201a">
-  <h2 style="margin:0 0 16px;color:#0b7a4b">DonateUZ</h2>
+  // Brand: cobalt blue on porcelain, matching the "Tilework & Thread" app theme.
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#10262b">
+  <div style="margin:0 0 16px;padding:8px 14px;background:#1d6fa3;color:#ffffff;border-radius:10px;font-size:16px;font-weight:bold">DonateUZ</div>
   <h3 style="margin:0 0 12px">${escapeHtml(title)}</h3>
   ${bodyHtml}
-  <p style="margin-top:28px;font-size:12px;color:#6b7a72">You received this because of activity on DonateUZ.</p>
+  <p style="margin-top:28px;font-size:12px;color:#5b7473">You received this because of activity on DonateUZ.</p>
 </div>`;
 }
 

@@ -2,22 +2,29 @@ const express = require('express');
 const Stripe = require('stripe');
 const pool = require('../db/pool');
 const { sendDonationReceipt } = require('../services/receipts');
+const { notifyGoalReached } = require('../services/goals');
 
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
-// Marks the donation completed (idempotent) and, outside the request's critical path, emails a receipt.
+// Marks the donation completed (idempotent) and, outside the request's critical path,
+// emails a receipt and checks whether the campaign just reached its goal.
 async function completeDonation(session) {
+  const email = (session.customer_details && session.customer_details.email) || session.customer_email || null;
   const result = await pool.query(
     `UPDATE donations
-       SET status = 'completed', stripe_payment_intent = $1, stripe_subscription_id = $2
-     WHERE stripe_session_id = $3 AND status <> 'completed'
-     RETURNING id`,
-    [session.payment_intent || null, session.subscription || null, session.id]
+       SET status = 'completed', stripe_payment_intent = $1, stripe_subscription_id = $2,
+           donor_email = COALESCE(donor_email, $3)
+     WHERE stripe_session_id = $4 AND status <> 'completed'
+     RETURNING id, campaign_id`,
+    [session.payment_intent || null, session.subscription || null, email, session.id]
   );
   // Also covers the case where the success-page verify route completed it first.
-  const row = result.rows[0] || (await pool.query('SELECT id FROM donations WHERE stripe_session_id = $1', [session.id])).rows[0];
-  if (row) sendDonationReceipt(row.id, (session.customer_details && session.customer_details.email) || session.customer_email);
+  const row = result.rows[0] || (await pool.query('SELECT id, campaign_id FROM donations WHERE stripe_session_id = $1', [session.id])).rows[0];
+  if (row) {
+    sendDonationReceipt(row.id, email);
+    notifyGoalReached(row.campaign_id); // fire-and-forget, idempotent
+  }
 }
 
 // IMPORTANT: this route must receive the RAW request body (see server.js),
@@ -76,6 +83,7 @@ router.post('/', async (req, res) => {
                 invoice.id
               ]
             );
+            notifyGoalReached(meta.campaignId); // fire-and-forget, idempotent
           }
         }
         break;

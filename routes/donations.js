@@ -2,6 +2,7 @@ const express = require('express');
 const Stripe = require('stripe');
 const pool = require('../db/pool');
 const { sendDonationReceipt } = require('../services/receipts');
+const { notifyGoalReached } = require('../services/goals');
 const { optionalAuth, requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -119,13 +120,16 @@ router.get('/verify/:sessionId', optionalAuth, async (req, res) => {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       if (session.payment_status === 'paid' || session.status === 'complete') {
         const updated = await pool.query(
-          `UPDATE donations SET status = 'completed', stripe_payment_intent = $1, stripe_subscription_id = $2
-           WHERE stripe_session_id = $3 AND status <> 'completed' RETURNING *`,
-          [session.payment_intent || null, session.subscription || null, sessionId]
+          `UPDATE donations SET status = 'completed', stripe_payment_intent = $1, stripe_subscription_id = $2,
+             donor_email = COALESCE(donor_email, $3)
+           WHERE stripe_session_id = $4 AND status <> 'completed' RETURNING *`,
+          [session.payment_intent || null, session.subscription || null,
+           (session.customer_details && session.customer_details.email) || session.customer_email || null, sessionId]
         );
         if (updated.rows[0]) {
           donation = updated.rows[0];
           sendDonationReceipt(donation.id, (session.customer_details && session.customer_details.email) || session.customer_email);
+          notifyGoalReached(donation.campaign_id); // fire-and-forget, idempotent
         }
       }
     }
