@@ -64,8 +64,10 @@
 .text-base { font-size:1rem; } .text-lg { font-size:1.125rem; } .text-xl { font-size:1.25rem; } .text-2xl { font-size:1.5rem; }
 .leading-none { line-height:1; } .leading-relaxed { line-height:1.625; }
 .object-cover { object-fit:cover; } .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* The ≥640px rule needs !important to beat .hidden's !important in
+   'hidden sm:block' patterns (Tailwind resolves this the same way). */
 .sm\:block { display:block; } @media (max-width:639px) { .sm\:block { display:none; } }
-@media (min-width:640px) { .sm\:block { display:block; } }
+@media (min-width:640px) { .sm\:block { display:block !important; } }
 
 html { background: var(--bg); }
 body { margin:0; width:100%; height:100vh; overflow:hidden; font-family:"Figtree",system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
@@ -155,8 +157,11 @@ h1, h2, h3, .display { font-family:"Fraunces","Georgia",serif; letter-spacing:-0
 .stat-item { text-align:center; }
 .stat-number { display:block; font-family:"Fraunces",serif; font-size:clamp(1.35rem,3vw,1.8rem); font-weight:700; color:var(--primary); line-height:1.1; }
 .stat-label { font-size:.72rem; color:var(--subtext); font-weight:600; margin-top:4px; }
-.stat-divider { width:1px; background:var(--border); }
-@media (max-width:520px) { .stat-divider { display:none; } }
+/* Dividers are grid items: if the three columns ever wrapped, a divider would
+   render as a stray vertical line on the second row. Show them only where the
+   bar is guaranteed wide enough for one clean row. */
+.stat-divider { display:none; }
+@media (min-width:1025px) { .stat-divider { display:block; } }
 
 /* ---------- How it works ---------- */
 .how-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }

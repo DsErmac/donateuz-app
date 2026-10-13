@@ -75,8 +75,9 @@ router.post('/:id/approve', requireAdmin, async (req, res) => {
   const urgency = req.body && req.body.urgency !== undefined ? Number(req.body.urgency) : 5;
   if (!Number.isInteger(urgency) || urgency < 1 || urgency > 5) return res.status(400).json({ error: 'Urgency must be between 1 and 5.' });
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     // FOR UPDATE: two admins clicking at once can't both approve the same request.
     const found = await client.query(`SELECT * FROM support_requests WHERE id = $1 AND status = 'pending_review' FOR UPDATE`, [req.params.id]);

@@ -66,16 +66,31 @@ router.post('/', async (req, res) => {
           const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
           const meta = subscription.metadata || {};
           if (meta.campaignId) {
+            // The campaign may have been deleted since the donor subscribed.
+            // Recording nothing and returning 200 stops Stripe's retry loop —
+            // the money was collected; only the attribution is gone.
+            const campaignExists = await pool.query('SELECT 1 FROM campaigns WHERE id = $1', [meta.campaignId]);
+            if (!campaignExists.rows[0]) {
+              console.warn(`[webhook] renewal for deleted campaign ${meta.campaignId} — recorded nowhere, acknowledged`);
+              break;
+            }
+            // Reach the guest donor's email via the Stripe customer for receipts/goal emails.
+            let donorEmail = null;
+            try {
+              const customer = await stripe.customers.retrieve(invoice.customer);
+              if (customer && !customer.deleted) donorEmail = customer.email || null;
+            } catch (e) { /* email is optional on this path */ }
             await pool.query(
               `INSERT INTO donations
-                (user_id, campaign_id, campaign_title, donor_name, amount_cents, currency, anonymous, recurring, status, stripe_subscription_id, stripe_invoice_id)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,true,'completed',$8,$9)
+                (user_id, campaign_id, campaign_title, donor_name, donor_email, amount_cents, currency, anonymous, recurring, status, stripe_subscription_id, stripe_invoice_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,true,'completed',$8,$9,$10)
                ON CONFLICT (stripe_invoice_id) WHERE stripe_invoice_id IS NOT NULL DO NOTHING`,
               [
                 meta.userId || null,
                 meta.campaignId,
                 meta.campaignTitle || meta.campaignId,
                 meta.donorName || 'DonateUZ supporter',
+                meta.userId ? null : donorEmail,
                 invoice.amount_paid,
                 (invoice.currency || 'usd'),
                 meta.anonymous === 'true',

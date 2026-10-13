@@ -20,6 +20,14 @@ const MIN_GOAL_CENTS = 100;           // $1.00
 const MAX_GOAL_CENTS = 100000000;     // $1,000,000.00
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Clamp paging params: garbage like ?limit=abc or ?offset=-5 would otherwise
+// reach Postgres and surface as a 500.
+function paging(query, defLimit = 50, maxLimit = 200) {
+  const limit = Math.min(Math.max(parseInt(query.limit, 10) || defLimit, 1), maxLimit);
+  const offset = Math.max(parseInt(query.offset, 10) || 0, 0);
+  return { limit, offset };
+}
+
 // Campaign ids end up in inline onclick handlers and URLs, so they come from a strict
 // [a-z0-9-] alphabet. The random suffix keeps two similar titles from colliding.
 function makeCampaignId(title) {
@@ -304,13 +312,15 @@ router.get('/donations', async (req, res) => {
       params.push(campaignId);
     }
     if (userId) {
+      if (!UUID_RE.test(userId)) return res.status(400).json({ error: 'Invalid user id.' });
       conditions.push(`d.user_id = $${params.length + 1}`);
       params.push(userId);
     }
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
 
     query += ` ORDER BY d.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(Number(limit), Number(offset));
+    const { limit: safeLimit, offset: safeOffset } = paging(req.query);
+    params.push(safeLimit, safeOffset);
 
     const result = await pool.query(query, params);
     // camelCase aliases keep the admin frontend (render/search/CSV export) in line
@@ -384,7 +394,11 @@ router.post('/donations/:id/cancel', async (req, res) => {
     }
 
     await stripe.subscriptions.update(donation.stripe_subscription_id, { cancel_at_period_end: true });
-    const updated = await pool.query(`UPDATE donations SET status = 'cancelled' WHERE id = $1 RETURNING *`, [donation.id]);
+    // Money already collected on this row stays 'completed' — cancelling stops
+    // FUTURE renewals only. Marking a paid row 'cancelled' would retroactively
+    // un-count collected money from campaign totals and the donor's history.
+    await pool.query(`UPDATE donations SET status = 'cancelled' WHERE id = $1 AND status = 'pending'`, [donation.id]);
+    const updated = await pool.query(`SELECT * FROM donations WHERE id = $1`, [donation.id]);
     res.json({ donation: updated.rows[0] });
   } catch (err) {
     console.error('[admin] cancel error', err.message);
@@ -413,7 +427,8 @@ router.get('/users', async (req, res) => {
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
 
     query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(Number(limit), Number(offset));
+    const { limit: safeLimit, offset: safeOffset } = paging(req.query);
+    params.push(safeLimit, safeOffset);
 
     const result = await pool.query(query, params);
     res.json({ users: result.rows, count: result.rows.length });
@@ -472,7 +487,8 @@ router.get('/support-requests', async (req, res) => {
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
 
     query += ` ORDER BY sr.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(Number(limit), Number(offset));
+    const { limit: safeLimit, offset: safeOffset } = paging(req.query);
+    params.push(safeLimit, safeOffset);
 
     const result = await pool.query(query, params);
     res.json({ requests: result.rows, count: result.rows.length });

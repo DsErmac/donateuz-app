@@ -26,6 +26,11 @@ router.post('/checkout', optionalAuth, async (req, res) => {
     if (!Number.isInteger(amount) || amount < MIN_AMOUNT_CENTS || amount > MAX_AMOUNT_CENTS) {
       return res.status(400).json({ error: 'Enter a valid donation amount.' });
     }
+    // Stripe metadata caps values at 500 chars; an over-long donor name would
+    // fail checkout creation server-side with an opaque 500.
+    if (donorName !== undefined && donorName !== null && (typeof donorName !== 'string' || donorName.trim().length > 100)) {
+      return res.status(400).json({ error: 'Name for receipt must be 100 characters or fewer.' });
+    }
 
     const campaignResult = await pool.query('SELECT * FROM campaigns WHERE id = $1 AND status = $2', [campaignId, 'active']);
     const campaign = campaignResult.rows[0];
@@ -119,7 +124,10 @@ router.get('/verify/:sessionId', optionalAuth, async (req, res) => {
 
     if (donation.status !== 'completed' && process.env.STRIPE_SECRET_KEY) {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      if (session.payment_status === 'paid' || session.status === 'complete') {
+      // Same strict predicate as the webhook: delayed payment methods complete
+      // sessions with status='complete' but payment_status='unpaid' — money has
+      // NOT been collected yet, so only these two states may mark completion.
+      if (session.payment_status === 'paid' || session.payment_status === 'no_payment_required') {
         const updated = await pool.query(
           `UPDATE donations SET status = 'completed', stripe_payment_intent = $1, stripe_subscription_id = $2,
              donor_email = COALESCE(donor_email, $3)

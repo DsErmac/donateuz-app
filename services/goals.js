@@ -13,6 +13,8 @@ function formatMoney(cents, currency) {
   }
 }
 
+const APP_CURRENCY = (process.env.STRIPE_CURRENCY || 'usd');
+
 // Atomically claims the "goal reached" moment for a campaign. Returns the
 // campaign row only for the FIRST call that finds the goal crossed — retried
 // webhooks and concurrent requests all see goal_reached_at already set.
@@ -49,7 +51,7 @@ async function donorEmailsFor(campaignId) {
 }
 
 function goalEmail(campaign) {
-  const amount = formatMoney(campaign.goal_amount_cents);
+  const amount = formatMoney(campaign.goal_amount_cents, APP_CURRENCY);
   const html = layout('You did it — the goal is reached', `
     <p>Good news! <strong>${escapeHtml(campaign.title)}</strong> in ${escapeHtml(campaign.region)} has reached its funding goal of <strong>${amount}</strong>.</p>
     <p>Your gift was part of that. Thank you for making it happen — 100% of the funds go to the cause.</p>`);

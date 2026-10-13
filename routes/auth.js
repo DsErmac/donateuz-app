@@ -46,10 +46,12 @@ router.post('/login', async (req, res) => {
     }
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
     const user = result.rows[0];
-    if (!user) return res.status(401).json({ error: 'Incorrect email or password.' });
-
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ error: 'Incorrect email or password.' });
+    // Burn a bcrypt compare even when the account doesn't exist, so response
+    // timing can't distinguish "no such account" from "wrong password" and
+    // undermine the no-enumeration design of forgot-password.
+    const DUMMY_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8DsAMd4wDyPAxmPEWoN8sEAFnC2uHq';
+    const match = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
+    if (!user || !match) return res.status(401).json({ error: 'Incorrect email or password.' });
 
     const token = signToken(user);
     setAuthCookie(res, token);
@@ -88,11 +90,9 @@ router.post('/forgot-password', async (req, res) => {
         `INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')`,
         [user.rows[0].id, hashToken(raw)]
       );
-      // Invalidate any older unused tokens for this account.
-      await pool.query(
-        `UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL AND token_hash <> $2`,
-        [user.rows[0].id, hashToken(raw)]
-      );
+      // Multiple concurrent requests each get a valid token: they don't
+      // invalidate each other (each link is single-use anyway), so a double
+      // click can't dead-end the link that was already emailed.
       const link = `${APP_URL}/#reset/${raw}`;
       const sent = await sendEmail({
         to: email.toLowerCase(),
@@ -129,7 +129,8 @@ router.post('/reset-password', async (req, res) => {
     if (!reset) return res.status(400).json({ error: 'This reset link has expired or was already used. Request a new one.' });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, reset.user_id]);
+    // token_version bump voids every JWT issued before this moment.
+    await pool.query('UPDATE users SET password_hash = $1, token_version = token_version + 1 WHERE id = $2', [passwordHash, reset.user_id]);
     // A password change voids every other outstanding reset token.
     await pool.query(`UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [reset.user_id]);
 

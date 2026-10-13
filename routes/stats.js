@@ -4,7 +4,8 @@ const pool = require('../db/pool');
 const router = express.Router();
 
 // GET /api/stats - public, anonymous platform totals for the home page.
-// Only completed money is counted; donorCount treats anonymous gifts as distinct donors.
+// Only completed money is counted. donorCount dedupes by account, falling back
+// to donor name; guest donations sharing a name collapse into one donor.
 router.get('/', async (req, res) => {
   try {
     const [donationsResult, campaignsResult] = await Promise.all([

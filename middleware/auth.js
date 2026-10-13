@@ -12,8 +12,9 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
 function signToken(user) {
   // Role is deliberately NOT stored in the token: it is read from the database on each
   // admin request, so demoting someone takes effect immediately.
+  // token_version lets a password change void every token issued before it.
   return jwt.sign(
-    { sub: user.id, email: user.email, name: user.name },
+    { sub: user.id, email: user.email, name: user.name, tv: user.token_version || 0 },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
@@ -53,12 +54,24 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-// Attaches req.user or responds 401 if not authenticated.
-function requireAuth(req, res, next) {
+// Attaches req.user or responds 401 if not authenticated. Also verifies the
+// token's version against the database, so a password change instantly voids
+// every session token issued before it (the extra query is the cost of that).
+async function requireAuth(req, res, next) {
   const user = readUserFromRequest(req);
   if (!user) return res.status(401).json({ error: 'Sign in required.' });
-  req.user = user;
-  next();
+  try {
+    const result = await pool.query('SELECT token_version FROM users WHERE id = $1', [user.id]);
+    const current = result.rows[0];
+    if (!current || current.token_version !== (user.tv || 0)) {
+      return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error('[auth] requireAuth error', err);
+    res.status(500).json({ error: 'Could not verify session.' });
+  }
 }
 
 // Requires a signed-in user whose CURRENT role in the database is 'admin'.
@@ -66,8 +79,12 @@ async function requireAdmin(req, res, next) {
   const user = readUserFromRequest(req);
   if (!user) return res.status(401).json({ error: 'Sign in required.' });
   try {
-    const result = await pool.query('SELECT role FROM users WHERE id = $1', [user.id]);
-    if (!result.rows[0] || result.rows[0].role !== 'admin') {
+    const result = await pool.query('SELECT role, token_version FROM users WHERE id = $1', [user.id]);
+    const row = result.rows[0];
+    if (!row || row.token_version !== (user.tv || 0)) {
+      return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    }
+    if (row.role !== 'admin') {
       return res.status(403).json({ error: 'Admin access required.' });
     }
     req.user = { ...user, role: 'admin' };

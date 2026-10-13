@@ -110,6 +110,10 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
 
+-- Bumped on every password change/reset: JWTs issued before the bump stop
+-- working, so a stolen session can't outlive a password rotation (30d cookie).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version int NOT NULL DEFAULT 0;
+
 -- ---------- Seed campaigns (safe to re-run) ----------
 INSERT INTO campaigns (id, title, category, region, story, image_seed, goal_amount_cents, seed_raised_amount_cents, urgency)
 VALUES

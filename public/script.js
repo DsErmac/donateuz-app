@@ -428,9 +428,13 @@ async function loadCampaigns() {
     renderHomeSpotlight();
   } catch (err) {
     console.error(err);
+    const list = document.getElementById('campaign-list');
     const loading = document.getElementById('campaign-loading');
-    loading.classList.remove('hidden');
-    loading.textContent = 'Could not load campaigns. Is the server running?';
+    if (list) list.innerHTML = ''; // remove the skeleton placeholders
+    if (loading) {
+      loading.classList.remove('hidden');
+      loading.textContent = 'Could not load campaigns. Is the server running?';
+    }
   }
 }
 
@@ -440,8 +444,14 @@ async function loadPublicStats() {
     const s = await api('/stats');
     const donors = document.getElementById('home-donor-count');
     const raised = document.getElementById('home-raised-total');
-    if (donors) donors.textContent = s.donorCount > 0 ? animateValue(donors, s.donorCount, v => Math.round(v).toLocaleString(), 1000) || '' : '—';
-    if (raised) s.totalRaisedCents > 0 ? animateValue(raised, s.totalRaisedCents, v => money(Math.round(v)), 1100) : (raised.textContent = money(0));
+    if (donors) {
+      if (s.donorCount > 0) animateValue(donors, s.donorCount, v => Math.round(v).toLocaleString(), 1000);
+      else donors.textContent = '—';
+    }
+    if (raised) {
+      if (s.totalRaisedCents > 0) animateValue(raised, s.totalRaisedCents, v => money(Math.round(v)), 1100);
+      else raised.textContent = money(0);
+    }
   } catch (err) {
     console.warn('[stats] could not load public stats', err.message);
   }
@@ -658,7 +668,7 @@ function filterCampaigns() {
   const input = document.getElementById('campaign-search');
   const query = input ? input.value.toLowerCase() : '';
   const list = document.getElementById('campaign-list');
-  const cards = [...list.querySelectorAll('.campaign')];
+  const cards = [...list.querySelectorAll('.campaign:not(.skeleton-card)')];
 
   cards.sort((a, b) => sortMode === 'raised'
     ? Number(b.dataset.raised) - Number(a.dataset.raised)
@@ -680,14 +690,45 @@ function filterCampaigns() {
 /* ================= Save / bookmark =================
    Guests: localStorage. Signed in: the account (Neon) is the source of truth,
    so bookmarks follow the user across devices. */
+// One in-flight sync per campaign id: a rapid second toggle waits for the
+// first request to finish instead of racing it (which could reorder a
+// PUT/DELETE pair on the server).
+const saveSyncQueues = new Map();
+
+function queueSaveSync(id, method) {
+  const run = (saveSyncQueues.get(id) || Promise.resolve()).catch(() => {});
+  const next = run.then(() => api(`/saved/${encodeURIComponent(id)}`, { method }))
+    .then(() => { saveSyncQueues.delete(id); })
+    .catch(() => {
+      saveSyncQueues.delete(id);
+      // Server unreachable: drop the optimistic local change and adopt server
+      // state, rather than replaying stale closure state (which could
+      // resurrect a bookmark the user just deleted).
+      showToast('Could not sync your saved campaigns. Check your connection.', 'error');
+      return api('/saved').then(({ saved: serverSaved }) => {
+        saved.clear();
+        serverSaved.forEach(sid => saved.add(sid));
+        localStorage.setItem('donateuz-saved', JSON.stringify([...saved]));
+        const ic = document.getElementById('save-' + id);
+        if (ic) { ic.setAttribute('data-lucide', saved.has(id) ? 'bookmark-check' : 'bookmark'); lucide.createIcons(); }
+        if (document.getElementById('profile-view').classList.contains('active')) renderSaved();
+      }).catch(() => {});
+    });
+  saveSyncQueues.set(id, next);
+  return next;
+}
+
 async function syncSavedFromServer() {
   if (!currentUser) return;
   try {
     const { saved: serverSaved } = await api('/saved');
     const before = new Set(saved);
+    // Guest saves made before signing in → the account. Only ids that existed
+    // locally at this moment are pushed: pushing the whole union would
+    // re-add a bookmark deleted in the last few hundred milliseconds.
+    const guestSnapshot = before;
     serverSaved.forEach(id => saved.add(id)); // account → this device
-    // Guest saves made before signing in → the account (union, so nothing is lost)
-    const toPush = [...saved].filter(id => !serverSaved.includes(id));
+    const toPush = [...guestSnapshot].filter(id => !serverSaved.includes(id));
     await Promise.all(toPush.map(id => api(`/saved/${encodeURIComponent(id)}`, { method: 'PUT' }).catch(() => {})));
     if (toPush.length || [...saved].some(id => !before.has(id))) {
       localStorage.setItem('donateuz-saved', JSON.stringify([...saved]));
@@ -708,18 +749,7 @@ function toggleSave(id) {
   showToast(willSave ? 'Campaign saved' : 'Campaign removed from saved');
   if (document.getElementById('profile-view').classList.contains('active')) renderSaved();
 
-  // Signed in: keep the account in sync. On failure, roll the toggle back.
-  if (currentUser) {
-    const rollback = () => {
-      willSave ? saved.delete(id) : saved.add(id);
-      localStorage.setItem('donateuz-saved', JSON.stringify([...saved]));
-      const ic = document.getElementById('save-' + id);
-      if (ic) { ic.setAttribute('data-lucide', saved.has(id) ? 'bookmark-check' : 'bookmark'); lucide.createIcons(); }
-      showToast('Could not sync your saved campaigns. Check your connection.', 'error');
-    };
-    api(willSave ? `/saved/${encodeURIComponent(id)}` : `/saved/${encodeURIComponent(id)}`, { method: willSave ? 'PUT' : 'DELETE' })
-      .catch(rollback);
-  }
+  if (currentUser) queueSaveSync(id, willSave ? 'PUT' : 'DELETE');
 }
 
 function renderSaved() {
@@ -818,6 +848,11 @@ document.addEventListener('input', (e) => {
     if (dollars > 0) {
       selectedAmountCents = Math.round(dollars * 100);
       document.querySelectorAll('#donation-amounts .amount').forEach(a => a.classList.remove('selected'));
+    } else if (e.target.value === '') {
+      // Custom amount cleared: fall back to the last preset instead of charging
+      // a stale typed amount that is no longer visible anywhere in the UI.
+      selectedAmountCents = 2500;
+      syncAmountButtons('donation-amounts');
     }
   }
 });
@@ -1518,6 +1553,14 @@ function goToRequestsPage(page) {
 }
 
 /* ================= Export Functions ================= */
+// CSV cells must neutralize leading =, +, -, @ and tab/CR: spreadsheet apps
+// evaluate them as formulas (CWE-1236). Donor-controlled text reaches exports.
+function csvCell(value) {
+  let v = String(value ?? '');
+  if (/^[=+@\t\r]|^-/.test(v)) v = `'` + v; // leading apostrophe is the standard neutralizer
+  return `"${v.replace(/"/g, '""')}"`;
+}
+
 function exportAdminDonations() {
   const filtered = getFilteredDonations();
   if (filtered.length === 0) {
@@ -1538,7 +1581,7 @@ function exportAdminDonations() {
     d.user_email || ''
   ]);
 
-  const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+  const csv = [headers.join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
   downloadCSV(csv, 'donations-export.csv');
   showToast('Donations exported successfully');
 }
@@ -1559,7 +1602,7 @@ function exportAdminUsers() {
     new Date(u.created_at).toISOString().split('T')[0]
   ]);
 
-  const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+  const csv = [headers.join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
   downloadCSV(csv, 'users-export.csv');
   showToast('Users exported successfully');
 }
