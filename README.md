@@ -2,6 +2,36 @@
 
 DonateUZ is all about giving with purpose in Uzbekistan. Whether you want to help with a medical emergency, support a student, or give back to your community, this app connects your generosity directly with verified local causes. Donate securely via Click or Payme and track your real-world impact.
 
+## v2.0 — "Tilework & Thread" experience layer
+
+- **Sound effects, synthesized in-browser** (`public/sound.js`): every sound is drawn from one warm
+  D-major pentatonic set (nav plucks, tile taps, toggle chirps, a coin press, a celebration fanfare,
+  whooshing sheets). Zero audio files — Web Audio only — and the `AudioContext` is created on the
+  first user gesture, so autoplay policies are respected. Toggle in Settings → Appearance & sound.
+- **Haptic feedback** on supported phones (`navigator.vibrate`), with its own toggle.
+- **Celebration moment**: a confirmed donation gets a fanfare, canvas confetti in the app's palette
+  (with heart shapes), a haptic pattern, and a new receipt sheet with an animated check ring
+  (`public/fx.js`, plus its own Settings toggle).
+- **Command palette** (`Ctrl/⌘K`, or `/`): jump to any page, search causes, toggle dark mode/sounds,
+  sign out — fully keyboard-navigable.
+- **Accent palettes**: five curated re-tints drawn from Uzbek craft (Samarkand cobalt, Bukhara
+  emerald, spice-road saffron, anor pomegranate, atlas-silk indigo), applied via `data-accent` CSS
+  variables in both light and dark themes. Pick them in Settings.
+- **Profile 2.0**: member-since date, donor levels (Friend → Supporter → Guardian → Champion →
+  Legend) with progress to the next, an impact grid (total given, gifts, causes supported, favourite
+  category), derived achievements (first gift, monthly hero, big heart, goal maker…), and donation
+  history filters (all / one-time / monthly).
+- **Account management**: edit your name (`PATCH /api/auth/profile`) and change your password
+  (`POST /api/auth/change-password` — verifies the current one, voids other sessions via
+  `token_version`, kills outstanding reset links), plus a one-click **data export** (JSON download of
+  profile, gifts, bookmarks, settings).
+- **Polish layer**: aurora wash behind the app, scroll-progress bar, cursor-following glow on cards,
+  staggered scroll reveals, a live activity feed that refreshes itself every 45s with a highlighted
+  new row, a redesigned receipt, and a settings page rebuilt into grouped sections.
+- Fixed a latent connectivity bug: the DB pool now prefers IPv4 DNS
+  (`dns.setDefaultResultOrder('ipv4first')` in `db/pool.js`) — on networks where the OS answers
+  with a broken IPv6 route first, every Neon query used to time out.
+
 
 This is a Node/Express backend + static frontend. It replaces the old browser-only
 localStorage mock with:
@@ -119,7 +149,7 @@ db/migrate.js             Runs schema.sql against DATABASE_URL
 db/make-admin.js          npm run make-admin -- <email>  (grants the admin role)
 db/pool.js                pg connection pool
 middleware/auth.js        JWT cookie helpers + requireAuth / optionalAuth / requireAdmin
-routes/auth.js             POST /api/auth/register, /login, /logout · GET /me
+routes/auth.js             POST /api/auth/register, /login, /logout, /forgot-password, /reset-password, /change-password · PATCH /profile · GET /me
 routes/campaigns.js        GET /api/campaigns (live totals from completed donations)
 routes/donations.js        POST /api/donations/checkout · GET /recent · GET /verify/:id · GET /history
 routes/saved.js            GET /api/saved · PUT/DELETE /api/saved/:campaignId — account-synced bookmarks
@@ -130,7 +160,7 @@ routes/webhooks.js         POST /api/webhooks/stripe — source of truth for pay
 services/email.js          Resend wrapper (never throws)
 services/receipts.js       Donation receipt email, sent at most once per donation
 services/goals.js          "Goal reached" donor emails, idempotent via campaigns.goal_reached_at
-public/                    Frontend (index.html, styles.css, script.js) + PWA (manifest.json, sw.js, offline.html)
+public/                    Frontend (index.html, styles.css, script.js, sound.js, fx.js) + PWA (manifest.json, sw.js, offline.html)
 public/videos/             Self-hosted hero + story videos (served same-origin; CSP media-src is 'self')
 ```
 

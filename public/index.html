@@ -19,6 +19,7 @@
 <body>
   <div class="app-shell">
     <div class="phone-frame" id="app">
+      <div id="scroll-progress" aria-hidden="true"></div>
 
       <!-- APP HEADER -->
       <header class="header p-4 flex items-center justify-between">
@@ -114,8 +115,11 @@
             </button>
           </div>
 
-          <h2 class="section-title reveal">Recent impact</h2>
-          <div id="activity-feed" class="activity-feed reveal" aria-label="Recent donations">
+          <div class="flex items-center justify-between reveal">
+            <h2 class="section-title m-0" style="margin-bottom:0">Recent impact</h2>
+            <span class="live-chip"><span class="live-dot"></span> Live</span>
+          </div>
+          <div id="activity-feed" class="activity-feed reveal mt-3" aria-label="Recent donations">
             <div class="activity-item">
               <div class="activity-avatar"><i data-lucide="heart" style="width:15px"></i></div>
               <div>
@@ -166,7 +170,7 @@
 
           <footer class="home-footer">
             <div class="ikat-band" aria-hidden="true"></div>
-            DonateUZ — kindness, close to home<br>Payments by Stripe · Data on Neon Postgres
+            DonateUZ 2.0 — kindness, close to home<br>Payments by Stripe · Data on Neon Postgres
           </footer>
         </section>
 
@@ -281,24 +285,35 @@
 
           <!-- Shown when signed in -->
           <div id="profile-signed-in" class="hidden">
-            <div class="flex items-center gap-3">
-              <div class="logo-mark" style="width:58px;height:58px;border-radius:999px;font-size:1.3rem" id="profile-avatar-initial">A</div>
-              <div>
-                <h1 id="profile-name" class="text-xl font-bold m-0">–</h1>
-                <p id="profile-email" class="text-xs m-0 mt-1" style="color:var(--subtext)">–</p>
+            <div class="profile-hero glow-card">
+              <div class="flex items-center gap-3">
+                <div class="logo-mark" id="profile-avatar-initial">A</div>
+                <div class="min-w-0">
+                  <h1 id="profile-name" class="text-xl font-bold m-0 truncate">–</h1>
+                  <p id="profile-email" class="text-xs m-0 mt-1 truncate" style="color:var(--subtext)">–</p>
+                  <p id="profile-member-since" class="text-xs m-0 mt-1" style="color:var(--subtext)"></p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between mt-4 flex-wrap gap-2">
+                <span id="profile-level-chip" class="donor-level-chip"><i data-lucide="heart"></i><span>Friend</span></span>
+                <span id="profile-level-next" class="text-xs font-bold" style="color:var(--subtext)"></span>
+              </div>
+              <div class="progress-track mt-2"><div id="profile-level-progress" class="progress-bar" style="width:0%"></div></div>
+              <div class="flex gap-2 mt-4">
+                <button class="secondary-btn flex-1 text-xs" type="button" onclick="openEditProfile()">
+                  <i data-lucide="pencil" style="width:14px"></i> Edit profile
+                </button>
+                <button class="secondary-btn flex-1 text-xs" type="button" onclick="openChangePassword()">
+                  <i data-lucide="key-round" style="width:14px"></i> Password
+                </button>
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 mt-4">
-              <div class="mini-stat">
-                <span>Giving total</span>
-                <strong id="giving-total" class="block mt-1">$0</strong>
-              </div>
-              <div class="mini-stat">
-                <span>Donations</span>
-                <strong id="donation-count" class="block mt-1">0</strong>
-              </div>
-            </div>
+            <h2 class="section-title">Your impact</h2>
+            <div id="impact-stats" class="grid grid-cols-2 gap-3"></div>
+
+            <h2 class="section-title">Achievements</h2>
+            <div id="achievements-row" class="ach-row"></div>
 
             <h2 class="section-title">Saved campaigns</h2>
             <div id="saved-list" class="space-y-3"></div>
@@ -309,7 +324,12 @@
             </div>
 
             <h2 class="section-title">Donation history</h2>
-            <div id="history-list" class="space-y-2"></div>
+            <div id="history-filters" class="chips" style="margin-top:0">
+              <button class="chip sm active" type="button" data-history="all" onclick="setHistoryFilter('all', this)">All</button>
+              <button class="chip sm" type="button" data-history="onetime" onclick="setHistoryFilter('onetime', this)">One-time</button>
+              <button class="chip sm" type="button" data-history="monthly" onclick="setHistoryFilter('monthly', this)">Monthly</button>
+            </div>
+            <div id="history-list" class="space-y-2 mt-3"></div>
             <div id="history-empty" class="empty">Completed donations will appear here with receipts.</div>
 
             <button id="admin-panel-btn" class="secondary-btn w-full mt-4 hidden" type="button" onclick="openSheet('admin-sheet')">
@@ -325,7 +345,7 @@
         <section id="settings-view" class="view" aria-label="Settings">
           <span class="compact-mark"><i data-lucide="settings-2" style="width:16px"></i></span>
           <h1 class="text-2xl font-bold mt-3 mb-1">Settings</h1>
-          <p class="text-xs mt-0" style="color:var(--subtext)">Manage preferences and app configuration.</p>
+          <p class="text-xs mt-0" style="color:var(--subtext)">Manage preferences, account and app configuration.</p>
 
           <div class="settings-group">
             <h2 class="section-title">Account & security</h2>
@@ -333,6 +353,16 @@
               <i data-lucide="mail"></i>
               <span><strong>Signed in as</strong><small id="settings-account-email">Not signed in</small></span>
             </div>
+            <button class="settings-row" type="button" id="edit-profile-row" onclick="openEditProfile()">
+              <i data-lucide="user-round-pen"></i>
+              <span><strong>Edit profile</strong><small>Update the name shown on your account</small></span>
+              <i data-lucide="chevron-right"></i>
+            </button>
+            <button class="settings-row" type="button" id="change-password-row" onclick="openChangePassword()">
+              <i data-lucide="key-round"></i>
+              <span><strong>Change password</strong><small>Signs out other sessions after the change</small></span>
+              <i data-lucide="chevron-right"></i>
+            </button>
             <button class="settings-row" type="button" id="settings-auth-action" onclick="openAuthSheet('login')">
               <i data-lucide="log-in"></i>
               <span><strong>Sign in / Create account</strong><small>Access your donation history across devices</small></span>
@@ -341,31 +371,81 @@
           </div>
 
           <div class="settings-group">
-            <h2 class="section-title">Appearance & accessibility</h2>
+            <h2 class="section-title">Appearance & sound</h2>
             <div class="settings-row">
               <i data-lucide="moon"></i>
               <span><strong>Dark mode</strong><small>Deep tilework theme for night reading</small></span>
-              <button id="settings-dark-toggle" type="button" class="switch" aria-label="Dark mode" aria-pressed="false" onclick="toggleSetting('darkMode',this)"><span></span></button>
+              <button id="settings-dark-toggle" type="button" class="switch setting-switch" data-setting="darkMode" aria-label="Dark mode" aria-pressed="false" onclick="toggleSetting('darkMode',this)"><span></span></button>
+            </div>
+            <div class="settings-row">
+              <i data-lucide="palette"></i>
+              <span><strong>Accent colour</strong><small>Re-tint the app in your favourite tile glaze</small></span>
+            </div>
+            <div class="settings-row" style="border-top:0;padding-top:0">
+              <div class="swatches" id="accent-swatches" role="radiogroup" aria-label="Accent colour"></div>
+            </div>
+            <div class="settings-row">
+              <i data-lucide="volume-2"></i>
+              <span><strong>Sound effects</strong><small>Gentle plucks, tiles and chimes as you use the app</small></span>
+              <button id="sound-toggle" type="button" class="switch setting-switch" data-setting="sound" aria-label="Sound effects" aria-pressed="false" onclick="toggleSetting('sound',this)"><span></span></button>
             </div>
             <div class="settings-row">
               <i data-lucide="sparkles"></i>
               <span><strong>Reduce motion</strong><small>Minimise transitions and animations</small></span>
-              <button id="motion-toggle" type="button" class="switch" aria-label="Reduce motion" aria-pressed="false" onclick="toggleSetting('reduceMotion',this)"><span></span></button>
+              <button id="motion-toggle" type="button" class="switch setting-switch" data-setting="reduceMotion" aria-label="Reduce motion" aria-pressed="false" onclick="toggleSetting('reduceMotion',this)"><span></span></button>
             </div>
           </div>
 
           <div class="settings-group">
-            <h2 class="section-title">Notifications</h2>
+            <h2 class="section-title">Feedback & notifications</h2>
+            <div class="settings-row">
+              <i data-lucide="smartphone"></i>
+              <span><strong>Haptic feedback</strong><small>Subtle vibration taps on supported phones</small></span>
+              <button class="switch setting-switch" data-setting="haptics" type="button" aria-label="Haptic feedback" aria-pressed="false" onclick="toggleSetting('haptics',this)"><span></span></button>
+            </div>
+            <div class="settings-row">
+              <i data-lucide="party-popper"></i>
+              <span><strong>Celebration effects</strong><small>Confetti when a gift is confirmed</small></span>
+              <button class="switch setting-switch" data-setting="confetti" type="button" aria-label="Celebration effects" aria-pressed="false" onclick="toggleSetting('confetti',this)"><span></span></button>
+            </div>
             <div class="settings-row">
               <i data-lucide="bell"></i>
               <span><strong>Push notifications</strong><small>Updates on saved causes</small></span>
               <button class="switch setting-switch" data-setting="pushNotifications" type="button" aria-label="Push notifications" aria-pressed="false" onclick="toggleSetting('pushNotifications',this)"><span></span></button>
             </div>
+            <div class="settings-row">
+              <i data-lucide="mail-check"></i>
+              <span><strong>Email updates</strong><small>Receipts and goal-reached news (managed per cause)</small></span>
+              <button class="switch setting-switch" data-setting="emailUpdates" type="button" aria-label="Email updates" aria-pressed="false" onclick="toggleSetting('emailUpdates',this)"><span></span></button>
+            </div>
           </div>
 
-          <button class="secondary-btn w-full mt-4" type="button" onclick="openSheet('settings-sheet')">
-            <i data-lucide="info" style="width:18px"></i> Development notes & architecture
-          </button>
+          <div class="settings-group">
+            <h2 class="section-title">Your data</h2>
+            <button class="settings-row" type="button" onclick="exportMyData()">
+              <i data-lucide="download"></i>
+              <span><strong>Export my data</strong><small>Download your profile, gifts and bookmarks as JSON</small></span>
+              <i data-lucide="chevron-right"></i>
+            </button>
+          </div>
+
+          <div class="settings-group">
+            <h2 class="section-title">About</h2>
+            <div class="settings-row">
+              <i data-lucide="info"></i>
+              <span><strong>Version</strong><small>DonateUZ 2.0 — Tilework & Thread</small></span>
+            </div>
+            <button class="settings-row" type="button" onclick="openPalette()">
+              <i data-lucide="command"></i>
+              <span><strong>Command palette</strong><small>Jump anywhere, fast</small></span>
+              <kbd>Ctrl K</kbd>
+            </button>
+            <button class="settings-row" type="button" onclick="openSheet('settings-sheet')">
+              <i data-lucide="cpu"></i>
+              <span><strong>Development notes & architecture</strong><small>How this app is built</small></span>
+              <i data-lucide="chevron-right"></i>
+            </button>
+          </div>
         </section>
 
       <!-- ADMIN DASHBOARD VIEW -->
@@ -704,8 +784,9 @@
         <div class="sheet">
           <div class="sheet-handle"></div>
           <button type="button" class="icon-btn float-right" aria-label="Close receipt" onclick="closeSheet('receipt-sheet')"><i data-lucide="x"></i></button>
-          <span class="badge completed"><i data-lucide="circle-check" style="width:14px"></i> Payment confirmed</span>
-          <h2 class="text-xl font-bold mt-3">Thank you for giving</h2>
+          <div class="receipt-ring"><i data-lucide="check"></i></div>
+          <h2 class="text-xl font-bold text-center">Thank you for giving</h2>
+          <p class="text-xs text-center mt-1" style="color:var(--subtext)">Payment confirmed — your gift is already at work.</p>
           <div id="receipt-content" class="receipt mt-3"></div>
         </div>
       </div>
@@ -735,12 +816,66 @@
         </div>
       </div>
 
+      <!-- Edit Profile Sheet -->
+      <div id="edit-profile-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Edit profile">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <button type="button" class="icon-btn float-right" aria-label="Close" onclick="closeSheet('edit-profile-sheet')"><i data-lucide="x"></i></button>
+          <h2 class="text-xl font-bold">Edit profile</h2>
+          <p class="text-xs mt-1" style="color:var(--subtext)">Your name appears on receipts and your profile.</p>
+          <p id="profile-error" class="notice hidden mt-3" style="border-left-color:var(--error)"></p>
+          <form id="edit-profile-form" onsubmit="handleProfileSave(event)">
+            <label class="field-label" for="edit-name">Full name</label>
+            <input id="edit-name" class="field" required maxlength="100" placeholder="Your name">
+            <button class="primary-btn w-full mt-5" type="submit" id="profile-save-btn">Save changes</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Change Password Sheet -->
+      <div id="password-sheet" class="overlay" role="dialog" aria-modal="true" aria-label="Change password">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <button type="button" class="icon-btn float-right" aria-label="Close" onclick="closeSheet('password-sheet')"><i data-lucide="x"></i></button>
+          <h2 class="text-xl font-bold">Change password</h2>
+          <p class="text-xs mt-1" style="color:var(--subtext)">Other sessions are signed out when the password changes.</p>
+          <p id="pw-error" class="notice hidden mt-3" style="border-left-color:var(--error)"></p>
+          <form id="password-form" onsubmit="handlePasswordChange(event)">
+            <label class="field-label" for="pw-current">Current password</label>
+            <input id="pw-current" class="field" type="password" required autocomplete="current-password" placeholder="••••••••">
+            <label class="field-label" for="pw-new">New password</label>
+            <input id="pw-new" class="field" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
+            <label class="field-label" for="pw-confirm">Confirm new password</label>
+            <input id="pw-confirm" class="field" type="password" required minlength="8" autocomplete="new-password" placeholder="Repeat it once more">
+            <button class="primary-btn w-full mt-5" type="submit" id="pw-submit">Update password</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Command Palette -->
+      <div id="palette-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Command palette" style="align-items:flex-start;padding-top:10vh">
+        <div class="palette-panel">
+          <div class="palette-head">
+            <i data-lucide="search"></i>
+            <input id="palette-input" type="text" placeholder="Jump to a page, cause or action…" autocomplete="off" spellcheck="false">
+          </div>
+          <div id="palette-results" class="pal-results"></div>
+          <div class="pal-foot">
+            <span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span>
+            <span><kbd>↵</kbd> select</span>
+            <span><kbd>esc</kbd> close</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Global Toast -->
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     </div>
   </div>
 
+  <script src="sound.js"></script>
+  <script src="fx.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

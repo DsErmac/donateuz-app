@@ -39,6 +39,7 @@ const revealObserver = ('IntersectionObserver' in window)
     }, { threshold: .12, rootMargin: '0px 0px -36px 0px' })
   : null;
 function observeReveals(root = document) {
+  if (window.FX) FX.stagger(root);
   if (!revealObserver) {
     root.querySelectorAll('.reveal:not(.in)').forEach(el => el.classList.add('in'));
     return;
@@ -187,7 +188,7 @@ function showToast(message, type = 'default') {
   if (!t) return;
   t.textContent = message;
   t.classList.remove('show', 'error-toast');
-  if (type === 'error') t.classList.add('error-toast');
+  if (type === 'error') { t.classList.add('error-toast'); Sound.play('error'); }
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3200);
 }
@@ -209,7 +210,11 @@ async function showView(name) {
   }
   document.querySelector('.main-content').scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   observeReveals(target);
+  // Navigation is a real action: a soft pluck and a tick under the thumb.
+  Sound.play('nav');
+  FX.haptic(8);
   if (name === 'profile') renderProfile();
+  if (name === 'settings') renderAccentSwatches();
   if (name === 'admin-dashboard') await loadAdminDashboard();
 }
 
@@ -243,11 +248,13 @@ function navigateToDonateWithCategory(category) {
 
 function openSheet(id) {
   document.getElementById(id).classList.add('open');
+  if (id !== 'palette-overlay') Sound.play('whooshUp');
   if (id === 'admin-sheet') loadAdminRequests();
   if (id === 'notifications-sheet') renderNotifications();
 }
 function closeSheet(id) {
   document.getElementById(id).classList.remove('open');
+  Sound.play('whooshDown');
   // A shared campaign link (#campaign/x) should return to the page's own URL when closed.
   if (id === 'campaign-sheet' && location.hash.startsWith('#campaign/')) {
     history.replaceState(null, '', '#' + activeViewName);
@@ -462,6 +469,9 @@ async function loadRecentActivity() {
   if (!feed) return;
   try {
     const { donations } = await api('/donations/recent');
+    const firstKey = donations[0] ? donations[0].id : null;
+    const isNew = window._lastFeedKey !== undefined && firstKey && firstKey !== window._lastFeedKey;
+    window._lastFeedKey = firstKey;
     recentDonations = donations;
     if (!donations.length) {
       feed.innerHTML = `
@@ -475,8 +485,8 @@ async function loadRecentActivity() {
       lucide.createIcons();
       return;
     }
-    feed.innerHTML = donations.map(d => `
-      <div class="activity-item" style="border-color:var(--border)">
+    feed.innerHTML = donations.map((d, i) => `
+      <div class="activity-item ${isNew && i === 0 ? 'fresh' : ''}" style="border-color:var(--border)">
         <div class="activity-avatar"><i data-lucide="heart" style="width:15px;color:var(--primary)"></i></div>
         <div>
           <span class="font-bold">${esc(d.donorName)}</span> gave to <span class="font-bold">${esc(d.campaignTitle)}</span><br>
@@ -484,6 +494,7 @@ async function loadRecentActivity() {
         </div>
       </div>`).join('');
     lucide.createIcons();
+    if (isNew) Sound.play('notify');
   } catch (err) {
     console.warn('[activity] could not load recent donations', err.message);
   }
@@ -747,6 +758,8 @@ function toggleSave(id) {
   const icon = document.getElementById('save-' + id);
   if (icon) { icon.setAttribute('data-lucide', willSave ? 'bookmark-check' : 'bookmark'); lucide.createIcons(); }
   showToast(willSave ? 'Campaign saved' : 'Campaign removed from saved');
+  Sound.play(willSave ? 'pop' : 'tap');
+  FX.haptic(12);
   if (document.getElementById('profile-view').classList.contains('active')) renderSaved();
 
   if (currentUser) queueSaveSync(id, willSave ? 'PUT' : 'DELETE');
@@ -834,6 +847,8 @@ function chooseAmount(el, amountCents) {
   document.getElementById('custom-amount').value = '';
   const group = el.closest('.amounts');
   if (group) group.querySelectorAll('.amount').forEach(a => a.classList.toggle('selected', a === el));
+  Sound.play('tap');
+  FX.haptic(8);
 }
 
 function syncAmountButtons(containerId) {
@@ -861,11 +876,13 @@ function toggleAnonymous() {
   isAnonymous = !isAnonymous;
   const b = document.getElementById('anonymous-toggle');
   b.classList.toggle('on', isAnonymous); b.setAttribute('aria-pressed', String(isAnonymous));
+  Sound.play(isAnonymous ? 'toggleOn' : 'toggleOff');
 }
 function toggleRecurring() {
   isRecurring = !isRecurring;
   const b = document.getElementById('recurring-toggle');
   b.classList.toggle('on', isRecurring); b.setAttribute('aria-pressed', String(isRecurring));
+  Sound.play(isRecurring ? 'toggleOn' : 'toggleOff');
 }
 
 /* ================= Stripe Checkout ================= */
@@ -874,6 +891,8 @@ async function startCheckout() {
   const originalLabel = button.innerHTML;
   button.disabled = true;
   button.innerHTML = 'Redirecting to secure payment…';
+  Sound.play('coin');
+  FX.haptic([15, 40, 15]);
   try {
     const donorName = document.getElementById('donor-name').value.trim();
     const { url } = await api('/donations/checkout', {
@@ -931,6 +950,10 @@ function showReceipt(donation) {
   document.getElementById('receipt-content').innerHTML = rows.map(r => `<div class="receipt-row"><span>${esc(r[0])}</span><strong>${esc(r[1])}</strong></div>`).join('');
   openSheet('receipt-sheet');
   celebrateHearts();
+  // The signature moment: fanfare, confetti in the app's palette, a thank-you pulse.
+  Sound.play('success');
+  if (appSettings.confetti !== false) FX.confetti();
+  FX.haptic([30, 50, 30, 50, 80]);
 }
 
 /* ================= Support requests ================= */
@@ -973,6 +996,9 @@ async function submitSupport(e) {
     });
     document.getElementById('support-form').classList.add('hidden');
     document.getElementById('support-success').classList.remove('hidden');
+    Sound.play('send');
+    if (appSettings.confetti !== false) FX.confetti({ count: 90 });
+    FX.haptic([20, 40, 20]);
   } catch (err) {
     showToast(err.message || 'Could not submit request. Try again.', 'error');
   } finally {
@@ -1813,42 +1839,60 @@ async function renderProfile() {
   document.getElementById('profile-name').textContent = currentUser.name;
   document.getElementById('profile-email').textContent = currentUser.email;
   document.getElementById('profile-avatar-initial').textContent = (currentUser.name || '?').trim().charAt(0).toUpperCase();
+  const since = document.getElementById('profile-member-since');
+  if (since) since.textContent = currentUser.createdAt
+    ? 'Member since ' + new Date(currentUser.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    : '';
 
   renderSaved();
   await loadDonationHistory();
 
-  document.getElementById('donation-count').textContent = historyRecords.length;
-  document.getElementById('giving-total').textContent = money(historyRecords.reduce((s, r) => s + (r.amountCents || 0), 0));
+  const totalCents = historyRecords.reduce((s, r) => s + (r.amountCents || 0), 0);
+  const lvl = donorLevel(totalCents);
+  const chip = document.getElementById('profile-level-chip');
+  if (chip) {
+    chip.innerHTML = `<i data-lucide="${lvl.level.icon}"></i><span>${esc(lvl.level.name)}</span>`;
+    lucide.createIcons();
+  }
+  const next = document.getElementById('profile-level-next');
+  if (next) next.textContent = lvl.next
+    ? `${money(lvl.next.min - totalCents)} to ${lvl.next.name}`
+    : 'Top level reached';
+  const bar = document.getElementById('profile-level-progress');
+  if (bar) bar.style.width = lvl.pct + '%';
 
-  const list = document.getElementById('history-list');
-  list.innerHTML = '';
-  document.getElementById('history-empty').classList.toggle('hidden', historyRecords.length > 0);
-  historyRecords.forEach(r => {
-    const el = document.createElement('button');
-    el.type = 'button'; el.className = 'story text-left w-full';
-    el.innerHTML = `<div class="compact-mark"><i data-lucide="receipt"></i></div><div class="flex-1"><strong>${esc(r.campaignTitle)}</strong><p class="text-xs m-0 mt-1" style="color:var(--subtext)">${money(r.amountCents, r.currency)} · ${r.recurring ? 'Monthly' : 'One-time'}</p></div><i data-lucide="chevron-right"></i>`;
-    el.onclick = () => showReceipt(r);
-    list.appendChild(el);
-  });
-  lucide.createIcons();
+  renderImpact(totalCents, historyRecords);
+  renderAchievements(historyRecords);
+  renderHistory();
 }
 
 /* ================= Settings ================= */
-const settingDefaults = { darkMode: false, reduceMotion: false, pushNotifications: true };
+const settingDefaults = {
+  darkMode: false, reduceMotion: false, pushNotifications: true,
+  sound: true, haptics: true, confetti: true, emailUpdates: false,
+  accent: 'cobalt'
+};
 let appSettings = { ...settingDefaults, ...JSON.parse(localStorage.getItem('donateuz-settings') || '{}') };
+
+const ACCENTS = [
+  { id: 'cobalt',  label: 'Samarkand cobalt', css: 'linear-gradient(135deg,#1D6FA3,#0F9E96)' },
+  { id: 'emerald', label: 'Bukhara emerald',  css: 'linear-gradient(135deg,#0E7C5B,#19A67E)' },
+  { id: 'saffron', label: 'Spice-road saffron', css: 'linear-gradient(135deg,#A96A08,#C07E14)' },
+  { id: 'anor',    label: 'Anor pomegranate', css: 'linear-gradient(135deg,#B23A2E,#D0553B)' },
+  { id: 'atlas',   label: 'Atlas-silk indigo', css: 'linear-gradient(135deg,#4F46B8,#7C5CD6)' }
+];
 
 function syncSettingsUI() {
   const dark = !!appSettings.darkMode;
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.documentElement.dataset.accent = ACCENTS.some(a => a.id === appSettings.accent) ? appSettings.accent : 'cobalt';
   document.body.classList.toggle('reduce-motion', !!appSettings.reduceMotion);
+  if (window.Sound) Sound.setEnabled(appSettings.sound !== false);
   document.querySelectorAll('.setting-switch').forEach(b => {
     const on = !!appSettings[b.dataset.setting];
     b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
   });
-  [['settings-dark-toggle', 'darkMode'], ['motion-toggle', 'reduceMotion']].forEach(([id, key]) => {
-    const b = document.getElementById(id);
-    if (b) { b.classList.toggle('on', !!appSettings[key]); b.setAttribute('aria-pressed', String(!!appSettings[key])); }
-  });
+  document.querySelectorAll('.swatch').forEach(b => b.classList.toggle('active', b.dataset.accent === appSettings.accent));
   if (window._updateHeroVideo) window._updateHeroVideo();
 }
 function saveSettings() {
@@ -1858,6 +1902,321 @@ function toggleSetting(key, button) {
   appSettings[key] = !appSettings[key];
   syncSettingsUI();
   saveSettings();
+  // Motion answers the action: a click, a state change.
+  FX.haptic(10);
+  Sound.play(appSettings[key] ? 'toggleOn' : 'toggleOff');
+}
+function selectAccent(id) {
+  appSettings.accent = id;
+  syncSettingsUI();
+  saveSettings();
+  FX.haptic(10);
+  Sound.play('pop');
+  showToast('Accent colour updated');
+}
+function renderAccentSwatches() {
+  const host = document.getElementById('accent-swatches');
+  if (!host) return;
+  host.innerHTML = ACCENTS.map(a =>
+    `<button type="button" class="swatch ${appSettings.accent === a.id ? 'active' : ''}" data-accent="${a.id}"
+       style="background:${a.css}" role="radio" aria-checked="${appSettings.accent === a.id}"
+       aria-label="${esc(a.label)}" title="${esc(a.label)}" onclick="selectAccent('${a.id}')"></button>`
+  ).join('');
+}
+
+/* ================= Donor levels, impact & achievements ================= */
+const LEVELS = [
+  { name: 'Friend',    min: 0,     icon: 'heart' },
+  { name: 'Supporter', min: 2500,  icon: 'star' },
+  { name: 'Guardian',  min: 10000, icon: 'shield' },
+  { name: 'Champion',  min: 25000, icon: 'crown' },
+  { name: 'Legend',    min: 50000, icon: 'gem' }
+];
+
+function donorLevel(totalCents) {
+  let idx = 0;
+  LEVELS.forEach((l, i) => { if (totalCents >= l.min) idx = i; });
+  const cur = LEVELS[idx];
+  const next = LEVELS[idx + 1] || null;
+  const pct = next ? Math.min(100, Math.round(((totalCents - cur.min) / (next.min - cur.min)) * 100)) : 100;
+  return { level: cur, next, pct };
+}
+
+let historyFilter = 'all';
+function setHistoryFilter(mode, btn) {
+  historyFilter = mode;
+  document.querySelectorAll('#history-filters .chip').forEach(c => c.classList.toggle('active', c === btn));
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  const records = historyRecords.filter(r => historyFilter === 'all'
+    ? true
+    : historyFilter === 'monthly' ? r.recurring : !r.recurring);
+  document.getElementById('history-empty').classList.toggle('hidden', records.length > 0);
+  list.innerHTML = '';
+  records.forEach(r => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'story text-left w-full glow-card';
+    el.innerHTML = `<div class="compact-mark"><i data-lucide="${r.recurring ? 'repeat' : 'receipt'}"></i></div><div class="flex-1"><strong>${esc(r.campaignTitle)}</strong><p class="text-xs m-0 mt-1" style="color:var(--subtext)">${money(r.amountCents, r.currency)} · ${r.recurring ? 'Monthly' : 'One-time'} · ${timeAgo(r.createdAt)}</p></div><i data-lucide="chevron-right"></i>`;
+    el.onclick = () => showReceipt(r);
+    list.appendChild(el);
+  });
+  lucide.createIcons();
+}
+
+function renderImpact(totalCents, records) {
+  const host = document.getElementById('impact-stats');
+  if (!host) return;
+  const causes = new Set(records.map(r => r.campaignId).filter(Boolean));
+  const catCounts = {};
+  records.forEach(r => {
+    const c = campaigns[r.campaignId];
+    if (c) catCounts[c.category] = (catCounts[c.category] || 0) + 1;
+  });
+  const fav = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0];
+  const tiles = [
+    ['hand-heart', money(totalCents), 'Given in total'],
+    ['gift', String(records.length), 'Gifts made'],
+    ['heart-handshake', String(causes.size), 'Causes supported'],
+    [fav ? 'sparkle' : 'compass', fav ? fav[0] : '—', 'Favourite category']
+  ];
+  host.innerHTML = tiles.map(([icon, value, label]) => `
+    <div class="mini-stat glow-card stat-glow">
+      <span style="display:flex;align-items:center;gap:6px"><i data-lucide="${icon}" style="width:14px;height:14px;color:var(--primary)"></i>${esc(label)}</span>
+      <strong class="block mt-1">${esc(value)}</strong>
+    </div>`).join('');
+  lucide.createIcons();
+}
+
+function renderAchievements(records) {
+  const host = document.getElementById('achievements-row');
+  if (!host) return;
+  const total = records.reduce((s, r) => s + (r.amountCents || 0), 0);
+  const cats = new Set(records.map(r => campaigns[r.campaignId] && campaigns[r.campaignId].category).filter(Boolean));
+  const hasGoal = records.some(r => r.campaignId && campaigns[r.campaignId] && campaigns[r.campaignId].goalReachedAt);
+  const defs = [
+    { icon: 'heart',           label: 'First gift',      hint: 'Make your first donation',   ok: records.length >= 1 },
+    { icon: 'star',            label: 'Regular giver',   hint: 'Give 5 times',               ok: records.length >= 5 },
+    { icon: 'repeat',          label: 'Monthly hero',    hint: 'Set up monthly giving',      ok: records.some(r => r.recurring) },
+    { icon: 'gem',             label: 'Big heart',       hint: 'Give $100 at once',          ok: records.some(r => r.amountCents >= 10000) },
+    { icon: 'shapes',          label: 'All-rounder',     hint: 'Support 3 categories',       ok: cats.size >= 3 },
+    { icon: 'trophy',          label: 'Goal maker',      hint: 'Give to a cause that reached its goal', ok: hasGoal }
+  ];
+  host.innerHTML = defs.map(d => `
+    <div class="ach ${d.ok ? 'unlocked' : 'locked'}">
+      <div class="ach-icon"><i data-lucide="${d.icon}"></i></div>
+      <div><strong>${esc(d.label)}</strong><small>${esc(d.ok ? 'Unlocked' : d.hint)}</small></div>
+    </div>`).join('');
+  lucide.createIcons();
+}
+
+/* ================= Account: edit profile & password ================= */
+function openEditProfile() {
+  if (!currentUser) { showToast('Sign in to edit your profile.', 'error'); openAuthSheet('login'); return; }
+  const err = document.getElementById('profile-error');
+  if (err) err.classList.add('hidden');
+  document.getElementById('edit-name').value = currentUser.name || '';
+  openSheet('edit-profile-sheet');
+}
+
+async function handleProfileSave(e) {
+  e.preventDefault();
+  const btn = document.getElementById('profile-save-btn');
+  const err = document.getElementById('profile-error');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const { user } = await api('/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: document.getElementById('edit-name').value.trim() })
+    });
+    currentUser = user;
+    closeSheet('edit-profile-sheet');
+    syncAccountUI();
+    renderProfile();
+    showToast('Profile updated');
+    Sound.play('success');
+  } catch (err2) {
+    if (err) { err.textContent = err2.message; err.classList.remove('hidden'); }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save changes';
+  }
+}
+
+function openChangePassword() {
+  if (!currentUser) { showToast('Sign in to change your password.', 'error'); openAuthSheet('login'); return; }
+  const err = document.getElementById('pw-error');
+  if (err) err.classList.add('hidden');
+  document.getElementById('password-form').reset();
+  openSheet('password-sheet');
+}
+
+async function handlePasswordChange(e) {
+  e.preventDefault();
+  const btn = document.getElementById('pw-submit');
+  const err = document.getElementById('pw-error');
+  const currentPassword = document.getElementById('pw-current').value;
+  const newPassword = document.getElementById('pw-new').value;
+  const confirm = document.getElementById('pw-confirm').value;
+  const fail = msg => { if (err) { err.textContent = msg; err.classList.remove('hidden'); } Sound.play('error'); };
+  if (newPassword !== confirm) { fail('The two new passwords do not match.'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Updating…';
+  try {
+    await api('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    closeSheet('password-sheet');
+    showToast('Password updated — other sessions were signed out');
+    Sound.play('success');
+  } catch (err2) {
+    fail(err2.message || 'Could not update the password.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Update password';
+  }
+}
+
+async function exportMyData() {
+  try {
+    if (!currentUser) { showToast('Sign in first — your data lives with your account.', 'error'); return; }
+    await loadDonationHistory();
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      app: 'DonateUZ',
+      profile: { name: currentUser.name, email: currentUser.email, role: currentUser.role, memberSince: currentUser.createdAt || null },
+      donations: historyRecords,
+      savedCampaigns: [...saved],
+      settings: appSettings
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'donateuz-my-data.json';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    showToast('Your data export is downloading');
+  } catch (err) {
+    showToast(err.message || 'Could not export your data.', 'error');
+  }
+}
+
+/* ================= Command palette ================= */
+let paletteOpen = false;
+let paletteItems = [];
+let paletteIndex = 0;
+
+function openPalette() {
+  const overlay = document.getElementById('palette-overlay');
+  if (!overlay) return;
+  paletteOpen = true;
+  overlay.classList.add('open');
+  const input = document.getElementById('palette-input');
+  input.value = '';
+  buildPaletteItems('');
+  setTimeout(() => input.focus(), 40);
+  Sound.play('whooshUp');
+}
+
+function closePalette() {
+  if (!paletteOpen) return;
+  paletteOpen = false;
+  document.getElementById('palette-overlay').classList.remove('open');
+  Sound.play('whooshDown');
+}
+
+function buildPaletteItems(query) {
+  const q = query.toLowerCase().trim();
+  const acts = [
+    { icon: 'house', label: 'Go to Home', hint: 'Page', run: () => showView('home') },
+    { icon: 'heart-handshake', label: 'Browse causes', hint: 'Page', run: () => showView('donate') },
+    { icon: 'file-heart', label: 'Request support', hint: 'Page', run: () => showView('request') },
+    { icon: 'user-round', label: 'My profile', hint: 'Page', run: () => showView('profile') },
+    { icon: 'settings-2', label: 'Settings', hint: 'Page', run: () => showView('settings') },
+    { icon: 'moon', label: 'Toggle dark mode', hint: 'Action', run: () => toggleSetting('darkMode') },
+    { icon: 'volume-2', label: (appSettings.sound !== false ? 'Disable' : 'Enable') + ' sound effects', hint: 'Action', run: () => toggleSetting('sound') },
+    { icon: 'bookmark', label: 'Toggle reduce motion', hint: 'Action', run: () => toggleSetting('reduceMotion') }
+  ];
+  if (currentUser && currentUser.role === 'admin') {
+    acts.push({ icon: 'shield-check', label: 'Admin dashboard', hint: 'Page', run: () => showView('admin-dashboard') });
+  }
+  if (currentUser) {
+    acts.push({ icon: 'log-out', label: 'Sign out', hint: 'Action', run: () => handleSignOut() });
+  } else {
+    acts.push({ icon: 'log-in', label: 'Sign in or create account', hint: 'Action', run: () => openAuthSheet('login') });
+  }
+  const camps = Object.values(campaigns).map(c => ({
+    icon: 'heart',
+    label: c.title,
+    hint: `Cause · ${c.category} · ${c.region}`,
+    run: () => openCampaign(c.id)
+  }));
+  let all = acts.concat(camps);
+  if (q) {
+    all = all.filter(i => (i.label + ' ' + i.hint).toLowerCase().includes(q));
+  }
+  paletteItems = all.slice(0, 12);
+  paletteIndex = 0;
+  renderPaletteResults(q);
+}
+
+function renderPaletteResults(q) {
+  const host = document.getElementById('palette-results');
+  if (!host) return;
+  if (!paletteItems.length) {
+    host.innerHTML = `<div class="pal-empty">Nothing matches “${esc(q)}”. Try a page name or a cause.</div>`;
+    return;
+  }
+  host.innerHTML = paletteItems.map((item, i) => `
+    <button type="button" class="pal-item ${i === paletteIndex ? 'active' : ''}" data-pal-index="${i}">
+      <span class="pal-icon"><i data-lucide="${item.icon}"></i></span>
+      <span class="flex-1 min-w-0"><span class="block truncate">${esc(item.label)}</span><small>${esc(item.hint)}</small></span>
+    </button>`).join('');
+  lucide.createIcons();
+  host.querySelectorAll('.pal-item').forEach(btn => {
+    btn.addEventListener('click', () => runPaletteItem(Number(btn.dataset.palIndex)));
+    btn.addEventListener('pointerenter', () => {
+      paletteIndex = Number(btn.dataset.palIndex);
+      host.querySelectorAll('.pal-item').forEach((b, i) => b.classList.toggle('active', i === paletteIndex));
+    });
+  });
+}
+
+function runPaletteItem(i) {
+  const item = paletteItems[i];
+  if (!item) return;
+  closePalette();
+  setTimeout(() => item.run(), 60); // let the palette close before the view flips
+}
+
+function initPalette() {
+  const overlay = document.getElementById('palette-overlay');
+  const input = document.getElementById('palette-input');
+  if (!overlay || !input) return;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closePalette(); });
+  input.addEventListener('input', () => buildPaletteItems(input.value));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); paletteIndex = Math.min(paletteItems.length - 1, paletteIndex + 1); renderPaletteResults(input.value); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); paletteIndex = Math.max(0, paletteIndex - 1); renderPaletteResults(input.value); }
+    else if (e.key === 'Enter') { e.preventDefault(); runPaletteItem(paletteIndex); }
+  });
+  document.addEventListener('keydown', e => {
+    const typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable);
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      paletteOpen ? closePalette() : openPalette();
+    } else if (e.key === 'Escape' && paletteOpen) {
+      closePalette();
+    } else if (e.key === '/' && !typing && !paletteOpen) {
+      e.preventDefault();
+      openPalette();
+    }
+  });
 }
 
 /* ================= Init ================= */
@@ -1876,11 +2235,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   setImage('impact-two-image', STATIC_PHOTOS.impactTwo, 'Students with supplies');
 
   syncSettingsUI();
+  renderAccentSwatches();
   lucide.createIcons();
 
   initHeroVideo();
   initStoryVideo();
   observeReveals();
+  if (window.FX) {
+    FX.initGlow();
+    FX.initScrollProgress();
+  }
+  initPalette();
 
   renderCampaignSkeletons();
 
@@ -1894,4 +2259,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyHashRoute(); // open a shared #campaign/<id> link once the data it needs is loaded
   updateNotifBadge();
   await handleCheckoutReturn();
+
+  // Keep the home feed alive: a quiet refresh while the tab is visible.
+  setInterval(() => {
+    if (!document.hidden) loadRecentActivity().then(updateNotifBadge).catch(() => {});
+  }, 45000);
 });

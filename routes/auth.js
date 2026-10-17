@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const pool = require('../db/pool');
-const { signToken, setAuthCookie, clearAuthCookie, optionalAuth } = require('../middleware/auth');
+const { signToken, setAuthCookie, clearAuthCookie, optionalAuth, requireAuth } = require('../middleware/auth');
 const { sendEmail } = require('../services/email');
 
 const router = express.Router();
@@ -30,7 +30,7 @@ router.post('/register', async (req, res) => {
     const user = result.rows[0];
     const token = signToken(user);
     setAuthCookie(res, token);
-    res.status(201).json({ user: { id: user.id, name: user.name, email: user.email, role: 'user' } });
+    res.status(201).json({ user: { id: user.id, name: user.name, email: user.email, role: 'user', createdAt: user.created_at } });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'An account with that email already exists.' });
     console.error('[auth] register error', err);
@@ -55,7 +55,7 @@ router.post('/login', async (req, res) => {
 
     const token = signToken(user);
     setAuthCookie(res, token);
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, createdAt: user.created_at } });
   } catch (err) {
     console.error('[auth] login error', err);
     res.status(500).json({ error: 'Could not sign in. Please try again.' });
@@ -146,12 +146,63 @@ router.post('/reset-password', async (req, res) => {
 router.get('/me', optionalAuth, async (req, res) => {
   if (!req.user) return res.json({ user: null });
   try {
-    const result = await pool.query('SELECT role FROM users WHERE id = $1', [req.user.id]);
+    const result = await pool.query('SELECT role, created_at FROM users WHERE id = $1', [req.user.id]);
     if (!result.rows[0]) return res.json({ user: null }); // account was deleted
-    res.json({ user: { ...req.user, role: result.rows[0].role } });
+    res.json({ user: { ...req.user, role: result.rows[0].role, createdAt: result.rows[0].created_at } });
   } catch (err) {
     console.error('[auth] me error', err);
     res.json({ user: req.user });
+  }
+});
+
+// ---------- Account management (signed-in user) ----------
+router.patch('/profile', requireAuth, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 100) {
+      return res.status(400).json({ error: 'Name is required (max 100 characters).' });
+    }
+    const result = await pool.query(
+      'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, name, email, role, token_version, created_at',
+      [name.trim(), req.user.id]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    setAuthCookie(res, signToken(user)); // the name lives in the JWT payload, so re-issue it
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, createdAt: user.created_at } });
+  } catch (err) {
+    console.error('[auth] profile error', err);
+    res.status(500).json({ error: 'Could not update your profile. Please try again.' });
+  }
+});
+
+router.post('/change-password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || !currentPassword) return res.status(400).json({ error: 'Your current password is required.' });
+    if (typeof newPassword !== 'string' || newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+    if (newPassword.length > 72) return res.status(400).json({ error: 'New password must be at most 72 characters.' });
+
+    const result = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    const row = result.rows[0];
+    if (!row) return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    const match = await bcrypt.compare(currentPassword, row.password_hash);
+    if (!match) return res.status(401).json({ error: 'Your current password is incorrect.' });
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const updated = await pool.query(
+      `UPDATE users SET password_hash = $1, token_version = token_version + 1
+        WHERE id = $2
+        RETURNING id, name, email, role, token_version, created_at`,
+      [passwordHash, req.user.id]
+    );
+    // A password change voids every outstanding reset link for the account.
+    await pool.query('UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [req.user.id]);
+    setAuthCookie(res, signToken(updated.rows[0])); // fresh cookie with the new token_version
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth] change-password error', err);
+    res.status(500).json({ error: 'Could not update the password. Please try again.' });
   }
 });
 

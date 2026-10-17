@@ -1,4 +1,11 @@
 const { Pool } = require('pg');
+const dns = require('dns');
+
+// Node 17+ follows the OS DNS order, and on some networks the OS answers with
+// IPv6 first even when only IPv4 has a working route to Neon — every query then
+// times out. Preferring IPv4 restores the behaviour everyone expects; it is a
+// no-op where IPv6 works fine.
+dns.setDefaultResultOrder('ipv4first');
 
 if (!process.env.DATABASE_URL) {
   console.warn('[db] DATABASE_URL is not set. Copy .env.example to .env and fill in your Neon connection string.');
