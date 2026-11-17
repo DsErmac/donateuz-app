@@ -42,15 +42,26 @@ function readUserFromRequest(req) {
   if (!token) return null;
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    return { id: payload.sub, email: payload.email, name: payload.name };
+    return { id: payload.sub, email: payload.email, name: payload.name, tv: payload.tv || 0 };
   } catch (err) {
     return null;
   }
 }
 
-// Attaches req.user if a valid cookie is present; never blocks the request.
-function optionalAuth(req, res, next) {
-  req.user = readUserFromRequest(req);
+// Attaches req.user if a valid, current cookie is present; never blocks the
+// request. The version check ensures password changes also void stale cookies
+// on routes that allow both guests and signed-in users.
+async function optionalAuth(req, res, next) {
+  const user = readUserFromRequest(req);
+  if (!user) { req.user = null; return next(); }
+  try {
+    const result = await pool.query('SELECT token_version FROM users WHERE id = $1', [user.id]);
+    const current = result.rows[0];
+    req.user = current && current.token_version === user.tv ? user : null;
+  } catch (err) {
+    console.error('[auth] optionalAuth error', err.message);
+    req.user = null;
+  }
   next();
 }
 

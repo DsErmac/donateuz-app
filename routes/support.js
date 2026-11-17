@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const pool = require('../db/pool');
 const { sendEmail, escapeHtml, layout } = require('../services/email');
-const { optionalAuth, requireAdmin } = require('../middleware/auth');
+const { optionalAuth, requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -56,6 +56,25 @@ router.post('/', optionalAuth, async (req, res) => {
   }
 });
 
+// A signed-in requester can follow their own submissions without gaining
+// access to the administrator review queue or other people's requests.
+router.get('/mine', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, title, category, region, target_amount_cents, status,
+              review_note, campaign_id, created_at, reviewed_at
+         FROM support_requests
+        WHERE user_id = $1
+        ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+    res.json({ requests: result.rows });
+  } catch (err) {
+    console.error('[support] requester list error', err);
+    res.status(500).json({ error: 'Could not load your support requests.' });
+  }
+});
+
 // Admin review queue. Requires users.role = 'admin' (grant with: npm run make-admin -- you@example.com).
 router.get('/', requireAdmin, async (req, res) => {
   try {
@@ -102,11 +121,11 @@ router.post('/:id/approve', requireAdmin, async (req, res) => {
       `<p>Good news — <strong>${escapeHtml(request.title)}</strong> passed review and is now live on DonateUZ.</p>`);
     res.json({ campaign: campaign.rows[0] });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (client) await client.query('ROLLBACK').catch(() => {});
     console.error('[support] approve error', err);
     res.status(500).json({ error: 'Could not approve this request.' });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 });
 

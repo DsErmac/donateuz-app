@@ -83,7 +83,7 @@ router.post('/', async (req, res) => {
             await pool.query(
               `INSERT INTO donations
                 (user_id, campaign_id, campaign_title, donor_name, donor_email, amount_cents, currency, anonymous, recurring, status, stripe_subscription_id, stripe_invoice_id)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,true,'completed',$8,$9,$10)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,'completed',$9,$10)
                ON CONFLICT (stripe_invoice_id) WHERE stripe_invoice_id IS NOT NULL DO NOTHING`,
               [
                 meta.userId || null,

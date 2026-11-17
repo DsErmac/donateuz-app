@@ -6,6 +6,10 @@
 
 const API = '/api';
 
+// Icons are enhancement, not infrastructure. If the CDN is unavailable, keep
+// the app functional and let text labels carry the interface.
+if (!window.lucide) window.lucide = { createIcons() {} };
+
 /* ---------- Motion & delight helpers ---------- */
 // Added before anything else: gates the scroll-reveal CSS so content is never
 // hidden if JS fails to load.
@@ -125,14 +129,22 @@ function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
-/* ---------- Photos (campaign images come from Neon; we just render a real photo per seed) ---------- */
+/* ---------- Photos ---------- */
+const CAMPAIGN_PHOTOS = {
+  medical: '/images/campaign-medical-v2.webp',
+  food: '/images/campaign-food-v2.webp',
+  education: '/images/campaign-education-v2.webp',
+  relief: '/images/campaign-relief-v2.webp'
+};
 function photoURL(seed, w = 800, h = 500) {
+  const key = String(seed || '').toLowerCase().replace(/^(donateuz-)+/, '');
+  if (CAMPAIGN_PHOTOS[key]) return CAMPAIGN_PHOTOS[key];
   return `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`;
 }
 const STATIC_PHOTOS = {
-  hero: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=900&q=80',
-  impactOne: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=500&q=80',
-  impactTwo: 'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=500&q=80'
+  hero: '/images/donateuz-hero-v2.webp',
+  impactOne: '/images/campaign-relief-v2.webp',
+  impactTwo: '/images/campaign-education-v2.webp'
 };
 
 function setImage(id, src, alt) {
@@ -140,7 +152,17 @@ function setImage(id, src, alt) {
   if (!el) return;
   el.alt = alt;
   el.src = src;
+  el.addEventListener('error', () => {
+    if (!el.src.endsWith('/images/donateuz-hero-v2.webp')) el.src = STATIC_PHOTOS.hero;
+  }, { once: true });
 }
+
+document.addEventListener('error', event => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || image.dataset.fallbackApplied === 'true') return;
+  image.dataset.fallbackApplied = 'true';
+  image.src = STATIC_PHOTOS.hero;
+}, true);
 
 /* ---------- Money formatting (cents -> display string) ---------- */
 function money(cents, currency = (window.APP_CURRENCY || 'usd')) {
@@ -152,6 +174,8 @@ let currentUser = null;          // { id, name, email } | null
 let campaigns = {};              // keyed by campaign id, from the API
 let campaignOrder = [];          // ids sorted by urgency
 let activeFilter = 'All', sortMode = 'urgent';
+let impactPlan = 'once';
+let pendingImpactPlan = false;
 let currentCampaign = null;
 let selectedAmountCents = 2500;
 let isAnonymous = false, isRecurring = false;
@@ -159,7 +183,9 @@ let lastDonation = null;
 let historyRecords = [];
 let adminRecords = [];
 let recentDonations = []; // feeds the saved-campaign notifications
+let supportRecords = [];
 const saved = new Set(JSON.parse(localStorage.getItem('donateuz-saved') || '[]'));
+let recentlyViewed = JSON.parse(localStorage.getItem('donateuz-recently-viewed') || '[]').filter(id => typeof id === 'string').slice(0, 6);
 
 // Admin dashboard state
 let adminStats = null;
@@ -588,6 +614,9 @@ function campaignCardHTML(c) {
       <button type="button" class="save-btn" aria-label="Save ${esc(c.title)}" onclick="toggleSave('${esc(c.id)}')">
         <i id="save-${esc(c.id)}" data-lucide="${saveIcon}"></i>
       </button>
+      <button type="button" class="share-card-btn" aria-label="Share ${esc(c.title)}" onclick="shareCampaign('${esc(c.id)}')">
+        <i data-lucide="share-2"></i>
+      </button>
     </div>
     <div class="campaign-body">
       <h3 class="campaign-title">${esc(c.title)}</h3>
@@ -626,6 +655,7 @@ function renderCampaignGrid() {
   lucide.createIcons();
   observeReveals(list);
   filterCampaigns();
+  renderRecentlyViewed();
 }
 
 function renderHomeSpotlight() {
@@ -662,9 +692,40 @@ function renderHomeSpotlight() {
   lucide.createIcons();
 }
 
+/* ---------- Giving plan ---------- */
+function updateImpactPlanner() {
+  const slider = document.getElementById('impact-amount');
+  if (!slider) return;
+  const amount = Number(slider.value);
+  const yearly = amount * 12;
+  document.getElementById('planner-amount').textContent = money(amount * 100);
+  document.getElementById('planner-period').textContent = impactPlan === 'monthly' ? 'each month' : 'one-time gift';
+  document.getElementById('planner-summary').textContent = impactPlan === 'monthly'
+    ? `${money(yearly * 100)} across a year, directed to the cause you choose.`
+    : `A flexible ${money(amount * 100)} gift to the cause you choose.`;
+  slider.style.setProperty('--range-progress', `${((amount - 5) / 245) * 100}%`);
+}
+
+function setImpactPlan(plan, button) {
+  impactPlan = plan;
+  document.querySelectorAll('.planner-rhythm .chip').forEach(chip => chip.classList.toggle('active', chip === button));
+  updateImpactPlanner();
+}
+
+function startPlannedDonation() {
+  const amount = Number(document.getElementById('impact-amount')?.value || 25);
+  selectedAmountCents = amount * 100;
+  isRecurring = impactPlan === 'monthly';
+  pendingImpactPlan = true;
+  showView('donate');
+  document.getElementById('campaign-search')?.focus({ preventScroll: true });
+  document.getElementById('campaign-list')?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  showToast(`${money(selectedAmountCents)} ${isRecurring ? 'monthly plan' : 'gift'} ready — choose a cause.`);
+}
+
 function setFilter(el) {
   activeFilter = el.dataset.filter;
-  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === el));
+  document.querySelectorAll('.chips[aria-label="Campaign categories"] .chip').forEach(c => c.classList.toggle('active', c === el));
   filterCampaigns();
 }
 
@@ -689,13 +750,33 @@ function filterCampaigns() {
 
   cards.forEach(card => {
     const matchesFilter = activeFilter === 'All' || card.dataset.category === activeFilter;
-    const matchesQuery = card.dataset.title.toLowerCase().includes(query);
+    const haystack = `${card.dataset.title} ${card.dataset.category || ''} ${card.querySelector('.campaign-meta')?.textContent || ''}`.toLowerCase();
+    const matchesQuery = haystack.includes(query);
     card.classList.toggle('hidden', !(matchesFilter && matchesQuery));
     list.appendChild(card);
   });
 
+  const visibleCount = cards.filter(c => !c.classList.contains('hidden')).length;
   const empty = document.getElementById('no-campaigns');
-  if (empty) empty.classList.toggle('hidden', cards.some(c => !c.classList.contains('hidden')));
+  if (empty) empty.classList.toggle('hidden', visibleCount > 0);
+  const count = document.getElementById('campaign-result-count');
+  if (count) count.textContent = String(visibleCount);
+  document.getElementById('campaign-search-clear')?.classList.toggle('hidden', !query);
+}
+
+function clearCampaignSearch() {
+  const input = document.getElementById('campaign-search');
+  if (!input) return;
+  input.value = '';
+  filterCampaigns();
+  input.focus();
+}
+
+function handleCampaignSearchKey(event) {
+  if (event.key === 'Escape' && event.currentTarget.value) {
+    event.preventDefault();
+    clearCampaignSearch();
+  }
 }
 
 /* ================= Save / bookmark =================
@@ -783,11 +864,38 @@ function renderSaved() {
   lucide.createIcons();
 }
 
+function trackRecentlyViewed(id) {
+  recentlyViewed = [id, ...recentlyViewed.filter(item => item !== id)].slice(0, 6);
+  localStorage.setItem('donateuz-recently-viewed', JSON.stringify(recentlyViewed));
+  renderRecentlyViewed();
+}
+
+function renderRecentlyViewed() {
+  const section = document.getElementById('recently-viewed-section');
+  const list = document.getElementById('recently-viewed-list');
+  if (!section || !list) return;
+  const available = recentlyViewed.map(id => campaigns[id]).filter(Boolean);
+  section.classList.toggle('hidden', available.length === 0);
+  list.innerHTML = available.map(c => `
+    <button type="button" class="recent-card" onclick="openCampaign('${esc(c.id)}')">
+      <img src="${photoURL('donateuz-' + c.imageSeed, 240, 160)}" alt="" loading="lazy">
+      <span><strong>${esc(c.title)}</strong><small>${esc(c.region)} · ${c.progress}% funded</small></span>
+    </button>`).join('');
+}
+
+function clearRecentlyViewed() {
+  recentlyViewed = [];
+  localStorage.removeItem('donateuz-recently-viewed');
+  renderRecentlyViewed();
+  showToast('Recently viewed causes cleared.');
+}
+
 /* ================= Campaign detail + donation sheet ================= */
 function openCampaign(id) {
   currentCampaign = id;
   const c = campaigns[id];
   if (!c) return;
+  trackRecentlyViewed(id);
   document.getElementById('detail-image').src = photoURL('donateuz-' + c.imageSeed);
   document.getElementById('detail-image').alt = c.title;
   document.getElementById('detail-badge').textContent = c.category;
@@ -803,10 +911,10 @@ function openCampaign(id) {
 }
 
 // Share button on the campaign sheet: native share sheet on mobile, clipboard elsewhere.
-async function shareCurrentCampaign() {
-  const id = currentCampaign;
+async function shareCampaign(id) {
   if (!id) return;
   const c = campaigns[id];
+  if (!c) return;
   const url = location.origin + location.pathname + '#campaign/' + encodeURIComponent(id);
   if (navigator.share) {
     try { await navigator.share({ title: c.title, text: `Support "${c.title}" on DonateUZ`, url }); return; }
@@ -820,6 +928,8 @@ async function shareCurrentCampaign() {
   }
 }
 
+function shareCurrentCampaign() { return shareCampaign(currentCampaign); }
+
 function toggleCurrentSave() {
   toggleSave(currentCampaign);
   document.getElementById('detail-save').innerHTML = saved.has(currentCampaign) ? '<i data-lucide="bookmark-check"></i>Saved' : '<i data-lucide="bookmark"></i>Save';
@@ -829,18 +939,24 @@ function toggleCurrentSave() {
 function openDonation() {
   closeSheet('campaign-sheet');
   const c = campaigns[currentCampaign];
+  const usePlannedSettings = pendingImpactPlan;
+  pendingImpactPlan = false;
   document.getElementById('donate-title').textContent = 'Give to ' + (c ? c.title : 'this campaign');
   document.getElementById('custom-amount').value = '';
-  isAnonymous = false; isRecurring = false;
+  isAnonymous = false;
+  if (!usePlannedSettings) isRecurring = false;
   const anon = document.getElementById('anonymous-toggle');
   anon.classList.remove('on'); anon.setAttribute('aria-pressed', 'false');
   const recur = document.getElementById('recurring-toggle');
-  recur.classList.remove('on'); recur.setAttribute('aria-pressed', 'false');
+  recur.classList.toggle('on', isRecurring); recur.setAttribute('aria-pressed', String(isRecurring));
   syncAmountButtons('donation-amounts');
+  if (usePlannedSettings && !document.querySelector('#donation-amounts .amount.selected')) {
+    document.getElementById('custom-amount').value = String(selectedAmountCents / 100);
+  }
   openSheet('donation-sheet');
 }
 
-function quickDonate(id) { currentCampaign = id; openDonation(); }
+function quickDonate(id) { currentCampaign = id; trackRecentlyViewed(id); openDonation(); }
 
 function chooseAmount(el, amountCents) {
   selectedAmountCents = amountCents;
@@ -957,8 +1073,81 @@ function showReceipt(donation) {
 }
 
 /* ================= Support requests ================= */
+const SUPPORT_DRAFT_KEY = 'donateuz-support-draft';
+let supportDraftTimer = null;
+
+function supportDraftData() {
+  return {
+    title: document.getElementById('support-title')?.value || '',
+    category: document.getElementById('support-category')?.value || 'Medical',
+    region: document.getElementById('support-region')?.value || '',
+    target: document.getElementById('support-target')?.value || '',
+    story: document.getElementById('support-story')?.value || ''
+  };
+}
+
+function updateSupportStoryCount() {
+  const story = document.getElementById('support-story');
+  const count = document.getElementById('support-story-count');
+  if (story && count) count.textContent = `${story.value.length} / 700`;
+}
+
+function saveSupportDraft() {
+  const data = supportDraftData();
+  if (Object.values(data).some(value => value && value !== 'Medical')) {
+    localStorage.setItem(SUPPORT_DRAFT_KEY, JSON.stringify(data));
+    const status = document.getElementById('support-draft-status');
+    if (status) status.textContent = 'Draft saved just now';
+  }
+}
+
+function clearSupportDraft(showMessage = true) {
+  localStorage.removeItem(SUPPORT_DRAFT_KEY);
+  const form = document.getElementById('support-form');
+  form?.reset();
+  updateSupportStoryCount();
+  const status = document.getElementById('support-draft-status');
+  if (status) status.textContent = 'Draft saves automatically on this device';
+  supportStep(1);
+  if (showMessage) showToast('Support request draft cleared.');
+}
+
+function initSupportDraft() {
+  const form = document.getElementById('support-form');
+  if (!form) return;
+  try {
+    const draft = JSON.parse(localStorage.getItem(SUPPORT_DRAFT_KEY) || 'null');
+    if (draft) {
+      document.getElementById('support-title').value = draft.title || '';
+      document.getElementById('support-category').value = draft.category || 'Medical';
+      document.getElementById('support-region').value = draft.region || '';
+      document.getElementById('support-target').value = draft.target || '';
+      document.getElementById('support-story').value = draft.story || '';
+      document.getElementById('support-draft-status').textContent = 'Saved draft restored from this device';
+    }
+  } catch (_) { localStorage.removeItem(SUPPORT_DRAFT_KEY); }
+  updateSupportStoryCount();
+  form.addEventListener('input', () => {
+    updateSupportStoryCount();
+    clearTimeout(supportDraftTimer);
+    supportDraftTimer = setTimeout(saveSupportDraft, 450);
+  });
+  form.addEventListener('change', saveSupportDraft);
+}
+
+function startNewSupportRequest() {
+  document.getElementById('support-success').classList.add('hidden');
+  document.getElementById('support-form').classList.remove('hidden');
+  clearSupportDraft(false);
+}
+
 function supportStep(step) {
   if (step === 2 && !document.getElementById('support-form').reportValidity()) return;
+  if (step === 3 && !document.getElementById('document-ready').checked) {
+    showToast('Confirm that supporting documents can be provided.', 'error');
+    document.getElementById('document-ready').focus();
+    return;
+  }
   [1, 2, 3].forEach(n => {
     const div = document.getElementById('support-step-' + ({ 1: 'one', 2: 'two', 3: 'three' }[n]));
     if (div) div.classList.toggle('hidden', n !== step);
@@ -996,6 +1185,7 @@ async function submitSupport(e) {
     });
     document.getElementById('support-form').classList.add('hidden');
     document.getElementById('support-success').classList.remove('hidden');
+    localStorage.removeItem(SUPPORT_DRAFT_KEY);
     Sound.play('send');
     if (appSettings.confetti !== false) FX.confetti({ count: 90 });
     FX.haptic([20, 40, 20]);
@@ -1829,6 +2019,40 @@ async function loadDonationHistory() {
   }
 }
 
+async function loadMySupportRequests() {
+  if (!currentUser) { supportRecords = []; return; }
+  try {
+    const { requests } = await api('/support-requests/mine');
+    supportRecords = requests || [];
+  } catch (err) {
+    supportRecords = [];
+    console.warn('[support] could not load requester history', err.message);
+  }
+}
+
+function renderMySupportRequests() {
+  const list = document.getElementById('my-requests-list');
+  const empty = document.getElementById('my-requests-empty');
+  if (!list || !empty) return;
+  empty.classList.toggle('hidden', supportRecords.length > 0);
+  const labels = { pending_review: 'In review', approved: 'Approved', rejected: 'Needs revision' };
+  list.innerHTML = supportRecords.map(request => {
+    const status = request.status || 'pending_review';
+    const created = new Date(request.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const action = status === 'approved' && request.campaign_id
+      ? `<button type="button" class="request-card-action" onclick="openCampaign('${esc(request.campaign_id)}')"><i data-lucide="external-link"></i>View live campaign</button>`
+      : '';
+    const note = status === 'rejected' && request.review_note
+      ? `<p><strong>Reviewer note:</strong> ${esc(request.review_note)}</p>`
+      : '';
+    return `<article class="request-card">
+      <div class="request-card-head"><div><strong>${esc(request.title)}</strong><p>${esc(request.region)} · ${esc(request.category)} · Submitted ${esc(created)}</p></div><span class="request-status ${esc(status)}">${esc(labels[status] || status)}</span></div>
+      ${note}${action}
+    </article>`;
+  }).join('');
+  lucide.createIcons();
+}
+
 async function renderProfile() {
   document.getElementById('profile-signed-out').classList.toggle('hidden', !!currentUser);
   document.getElementById('profile-signed-in').classList.toggle('hidden', !currentUser);
@@ -1845,7 +2069,8 @@ async function renderProfile() {
     : '';
 
   renderSaved();
-  await loadDonationHistory();
+  await Promise.all([loadDonationHistory(), loadMySupportRequests()]);
+  renderMySupportRequests();
 
   const totalCents = historyRecords.reduce((s, r) => s + (r.amountCents || 0), 0);
   const lvl = donorLevel(totalCents);
@@ -2085,12 +2310,13 @@ async function handlePasswordChange(e) {
 async function exportMyData() {
   try {
     if (!currentUser) { showToast('Sign in first — your data lives with your account.', 'error'); return; }
-    await loadDonationHistory();
+    await Promise.all([loadDonationHistory(), loadMySupportRequests()]);
     const payload = {
       exportedAt: new Date().toISOString(),
       app: 'DonateUZ',
       profile: { name: currentUser.name, email: currentUser.email, role: currentUser.role, memberSince: currentUser.createdAt || null },
       donations: historyRecords,
+      supportRequests: supportRecords,
       savedCampaigns: [...saved],
       settings: appSettings
     };
@@ -2219,9 +2445,56 @@ function initPalette() {
   });
 }
 
-/* ================= Init ================= */
+/* ================= Install, connectivity & init ================= */
+let deferredInstallPrompt = null;
+
+function updateConnectionStatus() {
+  const banner = document.getElementById('connection-banner');
+  if (!banner) return;
+  banner.classList.toggle('hidden', navigator.onLine);
+  if (navigator.onLine && banner.dataset.wasOffline === 'true') showToast('You’re back online.');
+  if (!navigator.onLine) banner.dataset.wasOffline = 'true';
+}
+
+async function installDonateUZ() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    document.getElementById('install-app-row')?.classList.add('hidden');
+    showToast(choice.outcome === 'accepted' ? 'DonateUZ installation started.' : 'Installation cancelled.');
+    return;
+  }
+  showToast('On iPhone or iPad, use Share → Add to Home Screen.');
+}
+
+function initInstallExperience() {
+  const row = document.getElementById('install-app-row');
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isStandalone) {
+    document.getElementById('offline-ready-status').textContent = 'Installed';
+    return;
+  }
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIOS && row) {
+    row.classList.remove('hidden');
+    document.getElementById('install-app-hint').textContent = 'Use Share → Add to Home Screen';
+  }
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    row?.classList.remove('hidden');
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    row?.classList.add('hidden');
+    document.getElementById('offline-ready-status').textContent = 'Installed';
+    showToast('DonateUZ is installed.');
+  });
+}
+
 // Register service worker for PWA / offline support
-if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(window.location.hostname))) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('[PWA] Service worker registered', reg.scope))
@@ -2233,6 +2506,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   setImage('hero-image', STATIC_PHOTOS.hero, 'Volunteers distributing aid');
   setImage('impact-one-image', STATIC_PHOTOS.impactOne, 'Repaired home roof');
   setImage('impact-two-image', STATIC_PHOTOS.impactTwo, 'Students with supplies');
+  updateImpactPlanner();
+  initSupportDraft();
+  initInstallExperience();
+  updateConnectionStatus();
+  window.addEventListener('online', updateConnectionStatus);
+  window.addEventListener('offline', updateConnectionStatus);
 
   syncSettingsUI();
   renderAccentSwatches();

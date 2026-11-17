@@ -134,7 +134,7 @@ router.post('/reset-password', async (req, res) => {
     // A password change voids every other outstanding reset token.
     await pool.query(`UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [reset.user_id]);
 
-    const user = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [reset.user_id]);
+    const user = await pool.query('SELECT id, name, email, token_version FROM users WHERE id = $1', [reset.user_id]);
     if (user.rows[0]) setAuthCookie(res, signToken(user.rows[0])); // signed in on reset
     res.json({ ok: true });
   } catch (err) {
@@ -148,10 +148,10 @@ router.get('/me', optionalAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT role, created_at FROM users WHERE id = $1', [req.user.id]);
     if (!result.rows[0]) return res.json({ user: null }); // account was deleted
-    res.json({ user: { ...req.user, role: result.rows[0].role, createdAt: result.rows[0].created_at } });
+    res.json({ user: { id: req.user.id, name: req.user.name, email: req.user.email, role: result.rows[0].role, createdAt: result.rows[0].created_at } });
   } catch (err) {
     console.error('[auth] me error', err);
-    res.json({ user: req.user });
+    res.json({ user: { id: req.user.id, name: req.user.name, email: req.user.email } });
   }
 });
 

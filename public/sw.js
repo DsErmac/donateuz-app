@@ -1,5 +1,5 @@
 // Service Worker for DonateUZ PWA
-const CACHE_NAME = 'donateuz-v4';
+const CACHE_NAME = 'donateuz-v8';
 const OFFLINE_URL = '/offline.html';
 
 // Files to cache on install
@@ -7,14 +7,22 @@ const FILES_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/offline.html',
   '/sw.js',
-  '/styles.css',
-  '/script.js',
+  '/styles.css?v=8',
+  '/script.js?v=8',
   '/sound.js',
   '/fx.js',
+  '/vendor/lucide.min.js',
   '/favicon.ico',
+  '/images/donateuz-hero-v2.webp',
+  '/images/campaign-medical-v2.webp',
+  '/images/campaign-food-v2.webp',
+  '/images/campaign-education-v2.webp',
+  '/images/campaign-relief-v2.webp',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
   // Static assets
-  'https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js',
   'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..900&family=Figtree:wght@400;500;600;700;800&display=swap'
 ];
 

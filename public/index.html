@@ -13,10 +13,11 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="icon" href="/favicon.ico">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..900;1,9..144,400..900&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="styles.css?v=8">
+  <script src="/vendor/lucide.min.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="app-shell">
     <div class="phone-frame" id="app">
       <div id="scroll-progress" aria-hidden="true"></div>
@@ -42,7 +43,7 @@
       </header>
 
       <!-- MAIN CONTENT WRAPPER -->
-      <main class="main-content">
+      <main class="main-content" id="main-content" tabindex="-1">
 
         <!-- 1. HOME VIEW -->
         <section id="home-view" class="view active" aria-label="Home">
@@ -53,6 +54,7 @@
               <source src="/videos/hero.mp4" type="video/mp4">
             </video>
             <div class="hero-wash" aria-hidden="true"></div>
+            <div class="hero-tile" aria-hidden="true"></div>
             <div class="sunburst hero-sunburst" aria-hidden="true"></div>
             <div class="hero-content">
               <span class="hero-chip"><i data-lucide="badge-check"></i> Document-verified causes across Uzbekistan</span>
@@ -72,6 +74,7 @@
             <div class="stat-divider"></div>
             <div class="stat-item"><strong class="stat-number" id="home-campaign-count">–</strong><span class="stat-label">Active causes</span></div>
           </div>
+          <div class="section-divider reveal"></div>
 
           <h2 class="section-title reveal">How giving works</h2>
           <div class="how-grid reveal">
@@ -114,6 +117,7 @@
               <span class="cat-name">Disaster relief</span>
             </button>
           </div>
+          <div class="section-divider reveal"></div>
 
           <div class="flex items-center justify-between reveal">
             <h2 class="section-title m-0" style="margin-bottom:0">Recent impact</h2>
@@ -127,6 +131,7 @@
               </div>
             </div>
           </div>
+          <div class="section-divider reveal"></div>
 
           <h2 class="section-title reveal">Impact stories</h2>
           <article class="story reveal">
@@ -147,7 +152,7 @@
           </article>
           <article class="story-media reveal" id="story-video-card">
             <div class="story-video">
-              <video id="story-video" muted loop playsinline preload="metadata" poster="https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&w=800&q=80">
+              <video id="story-video" muted loop playsinline preload="metadata" poster="/images/donateuz-hero-v2.webp">
                 <source src="/videos/story.mp4" type="video/mp4">
               </video>
               <button type="button" class="story-play" aria-label="Play story video"><i data-lucide="play"></i></button>
@@ -159,6 +164,7 @@
               <p class="text-xs m-0" style="color:var(--subtext)">Local teams deliver aid boxes door to door. Here is a glimpse of giving in motion.</p>
             </div>
           </article>
+          <div class="section-divider reveal"></div>
 
           <div class="trust-banner mt-5 reveal">
             <div class="trust-icon"><i data-lucide="shield-check" style="width:26px"></i></div>
@@ -167,6 +173,34 @@
               <p class="text-xs m-0" style="color:var(--subtext)">Every request on DonateUZ undergoes background document verification before it is listed.</p>
             </div>
           </div>
+
+          <section class="transparency-section reveal" aria-labelledby="transparency-title">
+            <div class="transparency-head">
+              <span class="eyebrow"><i data-lucide="shield-check"></i> Built for trust</span>
+              <h2 id="transparency-title">Clear at every step</h2>
+              <p>Know how a cause reaches the platform, how your payment is handled, and where to find your records afterward.</p>
+            </div>
+            <div class="trust-grid">
+              <article><i data-lucide="file-check-2"></i><strong>Reviewed before listing</strong><span>Support requests enter an administrator review queue before becoming public campaigns.</span></article>
+              <article><i data-lucide="lock-keyhole"></i><strong>Protected checkout</strong><span>Stripe processes card details; DonateUZ does not store your card number.</span></article>
+              <article><i data-lucide="receipt-text"></i><strong>Receipts you can revisit</strong><span>Signed-in donors can see completed gifts and receipts from their profile.</span></article>
+              <article><i data-lucide="eye-off"></i><strong>Privacy when you need it</strong><span>Choose anonymous giving so your name is not shown in public activity.</span></article>
+            </div>
+            <div class="faq-list">
+              <details>
+                <summary>How are campaigns approved?<i data-lucide="chevron-down"></i></summary>
+                <p>Submitted requests are held for administrator review. An approved request becomes a campaign; rejected requests can include a reviewer note.</p>
+              </details>
+              <details>
+                <summary>When does a donation count toward a goal?<i data-lucide="chevron-down"></i></summary>
+                <p>A donation is counted after Stripe confirms the payment through its webhook—not simply when the browser returns from checkout.</p>
+              </details>
+              <details>
+                <summary>Can I keep track across devices?<i data-lucide="chevron-down"></i></summary>
+                <p>Yes. Sign in to sync saved campaigns and view your completed donation history wherever you use DonateUZ.</p>
+              </details>
+            </div>
+          </section>
 
           <footer class="home-footer">
             <div class="ikat-band" aria-hidden="true"></div>
@@ -182,11 +216,40 @@
           </div>
           <p class="mt-1 text-xs" style="color:var(--subtext)">Select a verified cause below to contribute directly. Payments are processed securely by Stripe.</p>
 
+          <section class="impact-planner reveal" aria-labelledby="impact-planner-title">
+            <div class="impact-planner-copy">
+              <span class="eyebrow"><i data-lucide="sparkles"></i> Plan your impact</span>
+              <h2 id="impact-planner-title">See what consistent giving can do</h2>
+              <p>Choose an amount and rhythm. We’ll turn it into a simple giving plan—you stay in control and can change it anytime.</p>
+            </div>
+            <div class="impact-planner-control">
+              <div class="planner-value"><strong id="planner-amount">$25</strong><span id="planner-period">one-time gift</span></div>
+              <label class="sr-only" for="impact-amount">Donation amount</label>
+              <input id="impact-amount" class="impact-range" type="range" min="5" max="250" step="5" value="25" oninput="updateImpactPlanner()">
+              <div class="planner-rhythm" role="group" aria-label="Giving frequency">
+                <button type="button" class="chip active" data-plan="once" onclick="setImpactPlan('once', this)">Once</button>
+                <button type="button" class="chip" data-plan="monthly" onclick="setImpactPlan('monthly', this)">Monthly</button>
+              </div>
+              <div class="planner-summary"><i data-lucide="heart-handshake"></i><span id="planner-summary">A flexible $25 gift to the cause you choose.</span></div>
+              <button type="button" class="primary-btn w-full" onclick="startPlannedDonation()">Find a cause for this plan</button>
+            </div>
+          </section>
+
+          <section id="recently-viewed-section" class="recent-section hidden" aria-labelledby="recently-viewed-title">
+            <div class="flex items-center justify-between">
+              <h2 id="recently-viewed-title" class="section-title m-0">Recently viewed</h2>
+              <button type="button" class="text-btn" onclick="clearRecentlyViewed()">Clear</button>
+            </div>
+            <div id="recently-viewed-list" class="recent-strip"></div>
+          </section>
+
           <div class="search-row mt-4">
-            <label class="search" for="campaign-search">
+            <div class="search">
+              <label class="sr-only" for="campaign-search">Search campaigns</label>
               <i data-lucide="search" style="width:19px;color:var(--subtext)"></i>
-              <input id="campaign-search" type="search" placeholder="Search campaign title or region" oninput="filterCampaigns()">
-            </label>
+              <input id="campaign-search" type="search" placeholder="Search title, region or category" oninput="filterCampaigns()" onkeydown="handleCampaignSearchKey(event)">
+              <button id="campaign-search-clear" class="search-clear hidden" type="button" aria-label="Clear campaign search" onclick="clearCampaignSearch()"><i data-lucide="x"></i></button>
+            </div>
             <button type="button" class="icon-btn" aria-label="Sort campaigns" onclick="cycleSort()">
               <i data-lucide="arrow-down-up" style="width:19px"></i>
             </button>
@@ -201,7 +264,7 @@
           </div>
 
           <div class="flex items-center justify-between mt-4">
-            <h2 class="m-0 font-bold text-base">Active campaigns</h2>
+            <h2 class="m-0 font-bold text-base">Active campaigns <span id="campaign-result-count" class="result-count" aria-live="polite"></span></h2>
             <span id="sort-label" class="text-xs font-bold" style="color:var(--subtext)">Most urgent</span>
           </div>
 
@@ -223,6 +286,10 @@
           </div>
 
           <form id="support-form" onsubmit="submitSupport(event)">
+            <div class="draft-bar">
+              <span><i data-lucide="cloud-check"></i><span id="support-draft-status">Draft saves automatically on this device</span></span>
+              <button type="button" onclick="clearSupportDraft()">Clear draft</button>
+            </div>
             <div id="support-step-one">
               <label class="field-label" for="support-title">Campaign title</label>
               <input id="support-title" class="field" required maxlength="80" placeholder="e.g. Treatment support for family member">
@@ -238,16 +305,17 @@
               <label class="field-label" for="support-target">Target amount (USD)</label>
               <input id="support-target" class="field" required type="number" min="10" step="1" placeholder="1500">
               <label class="field-label" for="support-story">Tell us what support is needed</label>
-              <textarea id="support-story" class="field" required rows="4" maxlength="700" placeholder="Share a clear, respectful summary of the situation."></textarea>
+              <textarea id="support-story" class="field" required rows="5" maxlength="700" placeholder="Explain who needs support, what the funds cover, and why the request is time-sensitive." aria-describedby="support-story-help support-story-count"></textarea>
+              <div class="field-help"><span id="support-story-help">Include the practical need and how support will be used. Avoid unnecessary private details.</span><span id="support-story-count">0 / 700</span></div>
               <button class="primary-btn w-full mt-5" type="button" onclick="supportStep(2)">Continue to documents</button>
             </div>
 
             <div id="support-step-two" class="hidden">
               <div class="upload">
-                <i data-lucide="upload-cloud" style="width:30px" class="mx-auto mb-2"></i>
-                <p class="font-bold text-sm mb-1">Upload verification documents</p>
-                <p class="text-xs mt-0 mb-3">This demo doesn't upload files yet — attach real document storage (e.g. S3) before going live.</p>
-                <input id="document-upload" type="file" class="max-w-full text-xs" accept=".jpg,.jpeg,.png,.pdf" aria-label="Select supporting document">
+                <i data-lucide="folder-check" style="width:30px" class="mx-auto mb-2"></i>
+                <p class="font-bold text-sm mb-1">Prepare verification documents</p>
+                <p class="text-xs mt-0 mb-3">Secure file upload is not enabled yet. After submission, the review team may request proof of identity and documents showing the need or expected cost.</p>
+                <label class="readiness-check"><input id="document-ready" type="checkbox"><span><strong>I can provide supporting documents if requested</strong><small>Do not send sensitive files through ordinary messages or email unless the review team provides a secure method.</small></span></label>
               </div>
               <button class="primary-btn w-full mt-5" type="button" onclick="supportStep(3)">Review request</button>
               <button class="secondary-btn w-full mt-2" type="button" onclick="supportStep(1)">Back</button>
@@ -269,6 +337,7 @@
             <h2 class="text-lg font-extrabold mt-2">Request submitted for review</h2>
             <p class="text-xs" style="color:var(--subtext)">A team member will review your details shortly.</p>
             <button class="primary-btn mt-3" type="button" onclick="showView('home')">Return to home</button>
+            <button class="secondary-btn mt-3" type="button" onclick="startNewSupportRequest()">Submit another request</button>
           </div>
         </section>
 
@@ -321,6 +390,14 @@
               <i data-lucide="bookmark-x" style="width:32px"></i>
               <p class="font-bold mb-1">Nothing saved yet</p>
               <p class="text-xs m-0">Bookmark a campaign to quickly return to it whenever you are ready.</p>
+            </div>
+
+            <h2 class="section-title">Your support requests</h2>
+            <div id="my-requests-list" class="space-y-2"></div>
+            <div id="my-requests-empty" class="empty">
+              <i data-lucide="file-clock" style="width:32px"></i>
+              <p class="font-bold mb-1">No requests submitted</p>
+              <p class="text-xs m-0">Requests submitted while signed in will appear here with their review status.</p>
             </div>
 
             <h2 class="section-title">Donation history</h2>
@@ -417,6 +494,20 @@
               <i data-lucide="mail-check"></i>
               <span><strong>Email updates</strong><small>Receipts and goal-reached news (managed per cause)</small></span>
               <button class="switch setting-switch" data-setting="emailUpdates" type="button" aria-label="Email updates" aria-pressed="false" onclick="toggleSetting('emailUpdates',this)"><span></span></button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <h2 class="section-title">Install & offline</h2>
+            <button class="settings-row hidden" type="button" id="install-app-row" onclick="installDonateUZ()">
+              <i data-lucide="download-cloud"></i>
+              <span><strong>Install DonateUZ</strong><small id="install-app-hint">Add the app to your home screen for faster access</small></span>
+              <i data-lucide="chevron-right"></i>
+            </button>
+            <div class="settings-row">
+              <i data-lucide="wifi-off"></i>
+              <span><strong>Offline-ready browsing</strong><small>Core pages and campaign images remain available after your first visit</small></span>
+              <span class="status-pill" id="offline-ready-status">Ready</span>
             </div>
           </div>
 
@@ -620,7 +711,7 @@
               </div>
               <label class="field-label" for="cc-image-seed">Image Seed (optional)</label>
               <input id="cc-image-seed" class="field" placeholder="custom-seed-for-photo">
-              <p class="text-caption text-xs" style="color:var(--subtext)">Leave blank to auto-generate from title. Used for picsum.photos seed.</p>
+              <p class="text-caption text-xs" style="color:var(--subtext)">Leave blank to auto-generate from the title. Built-in cause imagery is used when the seed matches a supported category.</p>
               <div class="flex gap-2 mt-4">
                 <button type="button" class="secondary-btn flex-1" onclick="closeCampaignModal()">Cancel</button>
                 <button type="submit" class="primary-btn flex-1" id="cc-submit-btn">Create campaign</button>
@@ -870,12 +961,15 @@
 
       <!-- Global Toast -->
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <div id="connection-banner" class="connection-banner hidden" role="status" aria-live="polite">
+        <i data-lucide="wifi-off"></i><span>You’re offline. Browsing still works; payments and account changes will reconnect when you’re online.</span>
+      </div>
 
     </div>
   </div>
 
   <script src="sound.js"></script>
   <script src="fx.js"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=8"></script>
 </body>
 </html>
